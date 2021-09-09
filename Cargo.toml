@@ -1,0 +1,15 @@
+[package]
+name = "path_tracer"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+image = {version = '0.23.14', default-features = false , features = ["png", "hdr"]}
+ndarray = {version = '0.15.3', features = ["rayon"]}
+itertools = '0.10.1'
+nshare = {version = '0.7.0', features = [ "ndarray", "image"]}
+log = '0.4.14'
+rayon = '1.5.1'
+ndarray-linalg = '0.14.1'
