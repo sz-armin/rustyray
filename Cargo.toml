@@ -12,4 +12,4 @@ itertools = '0.10.1'
 nshare = {version = '0.7.0', features = [ "ndarray", "image"]}
 log = '0.4.14'
 rayon = '1.5.1'
-ndarray-linalg = '0.14.1'
+# ndarray-linalg = '0.14.1'
