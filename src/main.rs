@@ -2,10 +2,10 @@
 #![allow(dead_code)]
 
 use path_tracer;
-use std::ops;
+use std::ops::{self, Add, Mul};
 
-use image::{codecs::png::PngEncoder, EncodableLayout, ImageError};
-use ndarray::prelude::*;
+use image::{codecs::png::PngEncoder, EncodableLayout, ImageError, Pixel};
+use ndarray::{prelude::*, DataOwned, OwnedRepr, RawData, Zip};
 
 use rayon::prelude::*;
 
@@ -28,63 +28,27 @@ fn main() {
         focal_length: 1.0,
     };
 
+    // Geometry
     let origin: Array1<f32> = Array1::zeros(3);
     let vertical = array![0.0, camera.viewport.height, 0.0];
     let horizontal = array![camera.viewport.width, 0.0, 0.0];
+    // TODO why negative?
+    let top_left_corner =
+        &origin - (&horizontal / 2.0) + (&vertical / 2.0) - array![0.0, 0.0, camera.focal_length];
 
-    // let lower_left_corner = origin.clone()
-    //     - (&horizontal / 2.0)
-    //     - (&vertical / 2.0)
-    //     - array![0.0, 0.0, camera.focal_length];
+    // Render
+    Zip::indexed(canvas.buffer.lanes_mut(Axis(2))).par_for_each(|(j, i), mut pixel| {
+        let u = i as f32 / (canvas.width - 1) as f32;
+        let v = j as f32 / (canvas.height - 1) as f32;
+        let ray = Ray {
+            origin: Array1::zeros(3),
+            direction: &top_left_corner + u * &horizontal - v * &vertical - &origin,
+        };
+        pixel.assign(&ray.get_color());
+    });
 
-    let top_left_corner = origin.clone() - (&horizontal / 2.0) + (&vertical / 2.0)
-        - array![0.0, 0.0, camera.focal_length];
-
-    dbg!(&top_left_corner);
-
-    // canvas.buffer.exact_chunks_mut((1,1,3)).map(|x| x.fill(255.0));
-    canvas
-        .buffer
-        .lanes_mut(Axis(2))
-        .into_iter()
-        .enumerate()
-        .for_each(|(ind, mut pixel)| {
-            let i = ind % canvas.width as usize;
-            let j = ind / canvas.width as usize;
-            let u = i as f32 / (canvas.width - 1) as f32;
-            let v = j as f32 / (canvas.height - 1) as f32;
-            let ray = Ray {
-                origin: Array1::zeros(3),
-                direction: top_left_corner.clone() + u * &horizontal - v * &vertical - &origin,
-            };
-            pixel.assign(&ray.get_color());
-        });
-
-    // for j in (0..canvas.height - 1).rev() {
-    //     for i in 0..canvas.width - 1 {
-    //         let u = i as f32 / (canvas.width - 1) as f32;
-    //         let v = j as f32 / (canvas.height - 1) as f32;
-    //         let ray = Ray {
-    //             origin: Array1::zeros(3),
-    //             direction: lower_left_corner.clone() + u * &horizontal + v * &vertical - &origin,
-    //         };
-    //         canvas
-    //             .buffer
-    //             .slice_mut(s![((canvas.height - 1) - j) as usize, i as usize, ..])
-    //             .assign(&ray.get_color());
-    //     }
-    // }
-
-    // canvas.buffer[[100, 200, 0]] = 0.0;
-    // canvas.buffer[[100, 200, 1]] = 0.0;
-    // canvas.buffer[[100, 200, 2]] = 0.0;
-    dbg!(canvas.buffer.slice(s![0, 0, ..]));
-    dbg!(canvas.buffer.slice(s![200, 399, ..]));
+    // I/O
     canvas.save().expect("Failed to save file.");
-}
-
-fn color_ray() {
-    unimplemented!()
 }
 
 #[derive(Debug)]
@@ -95,22 +59,41 @@ struct Ray {
 
 impl Ray {
     fn get_color(&self) -> Array1<f32> {
-        // auto t = 0.5*(unit_direction.y() + 1.0);
-        // return (1.0-t)*color(1.0, 1.0, 1.0) + t*color(0.5, 0.7, 1.0);
+        let sphere = Sphere {
+            center: array![0.0, 0.0, -1.0],
+            radius: 0.5,
+        };
+        match self.hit_sphere(&sphere) {
+            // TODO unneeded?
+            Some(t) if t > 0.0 => {
+                let normal = (self.at(t) - sphere.center).unit();
+                return 0.5 * array![normal[0] + 1.0, normal[1] + 1.0, normal[2] + 1.0];
+            }
+            None => (),
+            _ => (),
+        }
 
-        // let normalized_dir = self.direction.clone() / self.direction.norm_l2();
-        // let normalized_dir = self.direction.clone()
-        //     / (self.direction[0].pow(2.0)
-        //         + self.direction[1].pow(2.0)
-        //         + self.direction[2].pow(2.0))
-        //     .sqrt();
-
-        let normalized_dir =
-            self.direction.clone() / (&self.direction * &self.direction).sum().sqrt();
-
-        let t = 0.5 * (normalized_dir[1] + 1.0);
+        let t = 0.5 * (self.direction.unit()[1] + 1.0);
         // Colors
         (1.0 - t) * array![1.0, 1.0, 1.0] + t * array![0.5, 0.7, 1.0]
+    }
+
+    fn hit_sphere(&self, sphere: &Sphere) -> Option<f32> {
+        let oc = &self.origin - &sphere.center;
+        let a = self.direction.dot(&self.direction);
+        let b = 2.0 * oc.dot(&self.direction);
+        let c = oc.dot(&oc) - sphere.radius.powi(2);
+
+        let discriminant = b.powi(2) - 4.0 * a * c;
+        if discriminant < 0.0 {
+            return None;
+        } else {
+            return Some((-b - discriminant.sqrt()) / (2.0 * a));
+        }
+    }
+
+    fn at(&self, t: f32) -> Array1<f32> {
+        &self.origin + t * &self.direction
     }
 }
 struct ViewPort {
@@ -157,5 +140,20 @@ impl Canvas {
             image::ColorType::Rgb8,
         )?;
         Ok(())
+    }
+}
+
+struct Sphere {
+    center: Array1<f32>,
+    radius: f32,
+}
+
+trait Unit {
+    fn unit(&self) -> Array1<f32>;
+}
+
+impl Unit for Array1<f32> {
+    fn unit(&self) -> Array1<f32> {
+        self.clone() / (self * self).sum().sqrt()
     }
 }
