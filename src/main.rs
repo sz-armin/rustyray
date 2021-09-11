@@ -8,13 +8,11 @@ use ndarray::{prelude::*, Zip};
 
 use rayon::prelude::*;
 
-mod objects;
-mod renderer;
+pub mod renderer;
+pub use renderer::*;
 
-use objects::*;
-use renderer::*;
-
-
+pub mod objects;
+pub use objects::*;
 
 fn main() {
     // Image
@@ -24,6 +22,18 @@ fn main() {
         aspect_ratio: 16.0 / 9.0,
         buffer: Array3::zeros((225, 400, 3)),
     };
+
+    // World
+    // point3(0,-100.5,-1), 100))
+    let sphere1 = Object::Sphere(Sphere {
+        center: array![0.0, 0.0, -1.0],
+        radius: 0.5,
+    });
+    let sphere2 = Object::Sphere(Sphere {
+        center: array![0.0, -100.5, -1.0],
+        radius: 100.0,
+    });
+    let scene_objs: Vec<&Object> = vec![&sphere1, &sphere2];
 
     // Camera
     let camera = Camera::new();
@@ -44,13 +54,12 @@ fn main() {
             origin: Array1::zeros(3),
             direction: &top_left_corner + u * &horizontal - v * &vertical - &origin,
         };
-        pixel.assign(&ray.get_color());
+        pixel.assign(&ray.get_color(&scene_objs));
     });
 
     // I/O
     canvas.save().expect("Failed to save file.");
 }
-
 
 // #[derive(Debug, Clone)]
 // struct Point(u32);
@@ -64,5 +73,3 @@ fn main() {
 //     }
 // }
 // struct Direction;
-
-

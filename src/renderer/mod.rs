@@ -7,49 +7,52 @@ pub struct Ray {
 }
 
 impl Ray {
-    pub fn get_color(&self) -> Array1<f32> {
-        let sphere = Sphere {
-            center: array![0.0, 0.0, -1.0],
-            radius: 0.5,
-        };
-        match self.hit_sphere(&sphere) {
-            // TODO unneeded?
-            Some(t) if t > 0.0 => {
-                let normal = (self.at(t) - sphere.center).unit();
-                return 0.5 * array![normal[0] + 1.0, normal[1] + 1.0, normal[2] + 1.0];
-            }
-            None => (),
-            _ => (),
+    pub fn get_color<T: Hit>(&self, scene_objs: &T) -> Array1<f32> {
+        let mut hit_rec = HitRecord::new();
+        if scene_objs.hit(self, 0.0..f32::INFINITY, &mut hit_rec) {
+            return 0.5
+                * array![
+                    hit_rec.normal[0] + 1.0,
+                    hit_rec.normal[1] + 1.0,
+                    hit_rec.normal[2] + 1.0
+                ];
         }
 
-        let t = 0.5 * (self.direction.unit()[1] + 1.0);
+        let unit_dir = 0.5 * (self.direction.unit() + 1.0);
         // Colors
-        (1.0 - t) * array![1.0, 1.0, 1.0] + t * array![0.5, 0.7, 1.0]
+        (1.0 - unit_dir[1]) * array![1.0, 1.0, 1.0] + unit_dir[1] * array![0.5, 0.7, 1.0]
     }
 
-    fn hit_sphere(&self, sphere: &Sphere) -> Option<f32> {
-        let oc = &self.origin - &sphere.center;
-        let a = self.direction.dot(&self.direction);
-        let half_b = oc.dot(&self.direction);
-        let c = oc.dot(&oc) - sphere.radius.powi(2);
-
-        let discriminant = half_b.powi(2) - a * c;
-        if discriminant < 0.0 {
-            return None;
-        } else {
-            return Some((-half_b - discriminant.sqrt()) / a);
-        }
-    }
-
-    fn at(&self, t: f32) -> Array1<f32> {
+    pub fn at(&self, t: f32) -> Array1<f32> {
         &self.origin + t * &self.direction
     }
 }
 
-struct hit_record {
-    point: Array1<f32>,
-    normal: Array1<f32>,
-    t: f32,
+#[derive(Clone)]
+pub struct HitRecord {
+    pub point: Array1<f32>,
+    pub normal: Array1<f32>,
+    pub t: f32,
+    pub front_face: bool,
+}
+
+impl HitRecord {
+    pub fn new() -> Self {
+        HitRecord {
+            point: Array1::zeros(3),
+            normal: Array1::zeros(3),
+            t: 0.0,
+            front_face: true,
+        }
+    }
+    pub fn set_face_normal(&mut self, ray: &Ray, outward_normal: &Array1<f32>) {
+        self.front_face = ray.direction.dot(outward_normal) < 0.0;
+        if self.front_face {
+            self.normal = outward_normal.clone();
+        } else {
+            self.normal = -outward_normal;
+        }
+    }
 }
 
 pub struct ViewPort {
@@ -100,7 +103,7 @@ impl Canvas {
     }
 }
 
-trait Unit {
+pub trait Unit {
     fn unit(&self) -> Array1<f32>;
 }
 
