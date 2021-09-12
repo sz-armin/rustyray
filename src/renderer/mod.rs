@@ -1,4 +1,8 @@
+use std::{default, io::ErrorKind};
+
 use super::*;
+
+use std::pin::Pin;
 
 #[derive(Debug)]
 pub struct Ray {
@@ -55,28 +59,52 @@ impl HitRecord {
     }
 }
 
+#[derive(Builder, Clone)]
 pub struct ViewPort {
+    #[builder(default = "2.0")]
     pub height: f32,
+    #[builder(default = "3.55")]
     pub width: f32,
-}
-
-pub struct Camera {
-    pub viewport: ViewPort,
+    #[builder(default = "1.0")]
     pub focal_length: f32,
+    #[builder(default = "array![0.0, 0.0, 0.0]")]
+    pub origin: Array1<f32>,
+    #[builder(setter(skip))]
+    pub vertical: Array1<f32>,
+    #[builder(setter(skip))]
+    pub horizontal: Array1<f32>,
+    #[builder(setter(skip))]
+    pub top_left_corner: Array1<f32>,
 }
 
-impl Camera {
-    pub fn new() -> Self {
-        let viewport = ViewPort {
-            height: 2.0,
-            width: 2.0 * 16.0 / 9.0,
-        };
-        Camera {
-            viewport,
-            focal_length: 1.0,
-        }
+impl ViewPort {
+    fn finalize_build(mut self) -> Self{
+        self.horizontal = array![self.width, 0.0, 0.0];
+        self.vertical = array![0.0, self.height, 0.0];
+        self.top_left_corner = &self.origin - (&self.horizontal / 2.0)
+            + (&self.vertical / 2.0)
+            - array![0.0, 0.0, self.focal_length];
+        self
     }
 }
+
+impl Default for ViewPort {
+    fn default() -> Self {
+        ViewPortBuilder::default().build().unwrap().finalize_build()
+    }
+}
+
+#[derive(Builder)]
+pub struct Camera {
+    pub viewport: ViewPort,
+}
+
+impl Default for Camera {
+    fn default() -> Self {
+        CameraBuilder::default().viewport(ViewPort::default()).build().unwrap()
+    }
+}
+
 pub struct Canvas {
     pub width: u32,
     pub height: u32,
