@@ -11,14 +11,19 @@ pub struct Ray {
 }
 
 impl Ray {
-    pub fn get_color<T: Hit>(&self, scene_objs: &T, depth: u32) -> Array1<f64> {
+    pub fn get_color<'b, 'a: 'b, T: Hit<'b, 'a>>(
+        &self,
+        scene_objs: &'a T,
+        depth: u32,
+    ) -> Array1<f64> {
         if depth == 0 {
             return array![0.0, 0.0, 0.0];
         }
         let mut hit_rec = HitRecord::new(&Material::None);
+
         if scene_objs.hit(self, f64::EPSILON..f64::INFINITY, &mut hit_rec) {
             #[cfg(debug_assertions)]
-            if NORMAL{
+            if NORMAL {
                 return 0.5
                     * array![
                         hit_rec.normal[0] + 1.0,

@@ -1,12 +1,17 @@
 use super::*;
 use std::{borrow::Borrow, mem::ManuallyDrop};
 
-pub enum Object<'a>{
+pub enum Object<'a> {
     Sphere(Sphere<'a>),
 }
 
-impl Hit for Object<'_> {
-    fn hit(&self, ray: &Ray, t_range: std::ops::Range<f64>, hit_rec: &mut HitRecord) -> bool {
+impl<'b, 'a: 'b> Hit<'b, 'a> for Object<'_> {
+    fn hit(
+        &'a self,
+        ray: &Ray,
+        t_range: std::ops::Range<f64>,
+        hit_rec: &mut HitRecord<'b>,
+    ) -> bool {
         match self {
             Object::Sphere(sphere) => sphere.hit(ray, t_range, hit_rec),
         }
@@ -19,8 +24,13 @@ pub struct Sphere<'a> {
     pub material: &'a Material,
 }
 
-impl Hit for Sphere<'_> {
-    fn hit(&self, ray: &Ray, t_range: std::ops::Range<f64>, hit_rec: &mut HitRecord) -> bool {
+impl<'b, 'a: 'b> Hit<'b, 'a> for Sphere<'a> {
+    fn hit(
+        &'a self,
+        ray: &Ray,
+        t_range: std::ops::Range<f64>,
+        hit_rec: &mut HitRecord<'b>,
+    ) -> bool {
         let oc = &ray.origin - &self.center;
         let a = ray.direction.dot(&ray.direction);
         let half_b = oc.dot(&ray.direction);
@@ -51,8 +61,13 @@ impl Hit for Sphere<'_> {
     }
 }
 
-impl<T: Hit> Hit for Vec<T> {
-    fn hit(&self, ray: &Ray, t_range: std::ops::Range<f64>, hit_rec: &mut HitRecord) -> bool {
+impl<'b, 'a: 'b, T: Hit<'b, 'a>> Hit<'b, 'a> for Vec<T> {
+    fn hit<'c>(
+        &'a self,
+        ray: &Ray,
+        t_range: std::ops::Range<f64>,
+        hit_rec: &mut HitRecord<'b>,
+    ) -> bool {
         // is there a better way?
         // let objs_refs: Vec<_> = self.iter().collect();
         let mut temp_rec = HitRecord::new(&Material::None);
@@ -68,7 +83,7 @@ impl<T: Hit> Hit for Vec<T> {
         }
         hit_anything
     }
-    }
+}
 
 // impl Hit for Vec<&Object> {
 //     fn hit(&self, ray: &Ray, t_range: std::ops::Range<f64>, hit_rec: &mut HitRecord) -> bool {
@@ -87,12 +102,18 @@ impl<T: Hit> Hit for Vec<T> {
 //     }
 // }
 
-impl<T: Hit> Hit for &'_ T {
-    fn hit(&self, ray: &Ray, t_range: std::ops::Range<f64>, hit_rec: &mut HitRecord) -> bool {
+impl<'b, 'a: 'b, T: Hit<'b, 'a>> Hit<'b, 'a> for &'_ T {
+    fn hit(
+        &'a self,
+        ray: &Ray,
+        t_range: std::ops::Range<f64>,
+        hit_rec: &mut HitRecord<'b>,
+    ) -> bool {
         (*self).hit(ray, t_range, hit_rec)
     }
 }
 
-pub trait Hit {
-    fn hit(&self, ray: &Ray, t_range: std::ops::Range<f64>, hit_rec: &mut HitRecord) -> bool;
+pub trait Hit<'b, 'a: 'b> {
+    fn hit(&'a self, ray: &Ray, t_range: std::ops::Range<f64>, hit_rec: &mut HitRecord<'b>)
+        -> bool;
 }
