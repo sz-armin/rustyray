@@ -15,18 +15,19 @@ impl Ray {
         if depth == 0 {
             return array![0.0, 0.0, 0.0];
         }
-        let mut hit_rec = HitRecord::new();
+        let mut hit_rec = HitRecord::new(&Material::None);
         if scene_objs.hit(self, f64::EPSILON..f64::INFINITY, &mut hit_rec) {
-            // Normal
-            // return 0.5
-            //     * array![
-            //         hit_rec.normal[0] + 1.0,
-            //         hit_rec.normal[1] + 1.0,
-            //         hit_rec.normal[2] + 1.0
-            //     ];
-
+            #[cfg(debug_assertions)]
+            if NORMAL{
+                return 0.5
+                    * array![
+                        hit_rec.normal[0] + 1.0,
+                        hit_rec.normal[1] + 1.0,
+                        hit_rec.normal[2] + 1.0
+                    ];
+            }
             // TODO Optimize
-            let target_point = &hit_rec.normal + &hit_rec.point + random_in_unit_circle();
+            let target_point = &hit_rec.normal + &hit_rec.point + random_in_unit_circle().unit();
             let ray = Ray {
                 direction: target_point - &hit_rec.point,
                 // direction : &self.direction - 2.0*self.direction.dot(&hit_rec.normal)*&hit_rec.normal,
@@ -47,20 +48,22 @@ impl Ray {
 }
 
 #[derive(Clone)]
-pub struct HitRecord {
+pub struct HitRecord<'a> {
     pub point: Array1<f64>,
     pub normal: Array1<f64>,
     pub t: f64,
     pub front_face: bool,
+    pub material: &'a Material,
 }
 
-impl HitRecord {
-    pub fn new() -> Self {
+impl<'a> HitRecord<'a> {
+    pub fn new(material: &'a Material) -> Self {
         HitRecord {
             point: Array1::zeros(3),
             normal: Array1::zeros(3),
             t: 0.0,
             front_face: true,
+            material: material,
         }
     }
     pub fn set_face_normal(&mut self, ray: &Ray, outward_normal: &Array1<f64>) {

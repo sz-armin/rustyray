@@ -3,6 +3,7 @@
 # # codegen-units = 1
 # opt-level = 3
 
-# [build]
+[build]
 # # target = "x86_64-unknown-linux-gnu"
 # rustflags = ["-C","target-cpu=native"]
+# rustflags = ["--cfg",'debug="normal_rendering"']

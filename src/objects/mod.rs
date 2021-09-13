@@ -1,11 +1,11 @@
 use super::*;
-use std::borrow::Borrow;
+use std::{borrow::Borrow, mem::ManuallyDrop};
 
-pub enum Object {
-    Sphere(Sphere),
+pub enum Object<'a>{
+    Sphere(Sphere<'a>),
 }
 
-impl Hit for Object {
+impl Hit for Object<'_> {
     fn hit(&self, ray: &Ray, t_range: std::ops::Range<f64>, hit_rec: &mut HitRecord) -> bool {
         match self {
             Object::Sphere(sphere) => sphere.hit(ray, t_range, hit_rec),
@@ -13,12 +13,13 @@ impl Hit for Object {
     }
 }
 
-pub struct Sphere {
+pub struct Sphere<'a> {
     pub center: Array1<f64>,
     pub radius: f64,
+    pub material: &'a Material,
 }
 
-impl Hit for Sphere {
+impl Hit for Sphere<'_> {
     fn hit(&self, ray: &Ray, t_range: std::ops::Range<f64>, hit_rec: &mut HitRecord) -> bool {
         let oc = &ray.origin - &self.center;
         let a = ray.direction.dot(&ray.direction);
@@ -44,6 +45,7 @@ impl Hit for Sphere {
         hit_rec.point = ray.at(hit_rec.t);
         let outward_normal = (&hit_rec.point - &self.center) / self.radius;
         hit_rec.set_face_normal(ray, &outward_normal);
+        hit_rec.material = self.material;
 
         true
     }
@@ -53,7 +55,7 @@ impl<T: Hit> Hit for Vec<T> {
     fn hit(&self, ray: &Ray, t_range: std::ops::Range<f64>, hit_rec: &mut HitRecord) -> bool {
         // is there a better way?
         // let objs_refs: Vec<_> = self.iter().collect();
-        let mut temp_rec = HitRecord::new();
+        let mut temp_rec = HitRecord::new(&Material::None);
         let mut hit_anything = false;
         let mut closet = t_range.end;
         // TODO is there a better way?
