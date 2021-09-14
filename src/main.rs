@@ -46,16 +46,18 @@ fn main() {
 
     // World
     // point3(0,-100.5,-1), 100))
-    let material = Material::Lambertian(Lambertian{});
+    let material = Material::Diffuse(Diffuse {
+        albedo: array![0.5, 0.5, 0.5],
+    });
     let sphere1 = Object::Sphere(Sphere {
         center: array![0.0, 0.0, -1.0],
         radius: 0.5,
-        material: &material
+        material: &material,
     });
     let sphere2 = Object::Sphere(Sphere {
         center: array![0.0, -100.5, -1.0],
         radius: 100.0,
-        material: &material
+        material: &material,
     });
     let scene_objs: Vec<&Object> = vec![&sphere1, &sphere2];
     // let scene_objs = &sphere1;

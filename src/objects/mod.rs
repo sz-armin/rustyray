@@ -5,13 +5,8 @@ pub enum Object<'a> {
     Sphere(Sphere<'a>),
 }
 
-impl<'b, 'a: 'b> Hit<'b, 'a> for Object<'_> {
-    fn hit(
-        &'a self,
-        ray: &Ray,
-        t_range: std::ops::Range<f64>,
-        hit_rec: &mut HitRecord<'b>,
-    ) -> bool {
+impl<'b, 'a: 'b> Hit<'b, 'a> for Object<'a> {
+    fn hit(&self, ray: &Ray, t_range: std::ops::Range<f64>, hit_rec: &mut HitRecord<'b>) -> bool {
         match self {
             Object::Sphere(sphere) => sphere.hit(ray, t_range, hit_rec),
         }
@@ -25,12 +20,7 @@ pub struct Sphere<'a> {
 }
 
 impl<'b, 'a: 'b> Hit<'b, 'a> for Sphere<'a> {
-    fn hit(
-        &'a self,
-        ray: &Ray,
-        t_range: std::ops::Range<f64>,
-        hit_rec: &mut HitRecord<'b>,
-    ) -> bool {
+    fn hit(&self, ray: &Ray, t_range: std::ops::Range<f64>, hit_rec: &mut HitRecord<'b>) -> bool {
         let oc = &ray.origin - &self.center;
         let a = ray.direction.dot(&ray.direction);
         let half_b = oc.dot(&ray.direction);
@@ -63,7 +53,7 @@ impl<'b, 'a: 'b> Hit<'b, 'a> for Sphere<'a> {
 
 impl<'b, 'a: 'b, T: Hit<'b, 'a>> Hit<'b, 'a> for Vec<T> {
     fn hit<'c>(
-        &'a self,
+        &self,
         ray: &Ray,
         t_range: std::ops::Range<f64>,
         hit_rec: &mut HitRecord<'b>,
@@ -103,17 +93,11 @@ impl<'b, 'a: 'b, T: Hit<'b, 'a>> Hit<'b, 'a> for Vec<T> {
 // }
 
 impl<'b, 'a: 'b, T: Hit<'b, 'a>> Hit<'b, 'a> for &'_ T {
-    fn hit(
-        &'a self,
-        ray: &Ray,
-        t_range: std::ops::Range<f64>,
-        hit_rec: &mut HitRecord<'b>,
-    ) -> bool {
+    fn hit(&self, ray: &Ray, t_range: std::ops::Range<f64>, hit_rec: &mut HitRecord<'b>) -> bool {
         (*self).hit(ray, t_range, hit_rec)
     }
 }
 
 pub trait Hit<'b, 'a: 'b> {
-    fn hit(&'a self, ray: &Ray, t_range: std::ops::Range<f64>, hit_rec: &mut HitRecord<'b>)
-        -> bool;
+    fn hit(&self, ray: &Ray, t_range: std::ops::Range<f64>, hit_rec: &mut HitRecord<'b>) -> bool;
 }

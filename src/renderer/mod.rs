@@ -31,15 +31,8 @@ impl Ray {
                         hit_rec.normal[2] + 1.0
                     ];
             }
-            // TODO Optimize
-            let target_point = &hit_rec.normal + &hit_rec.point + random_in_unit_circle().unit();
-            let ray = Ray {
-                direction: target_point - &hit_rec.point,
-                // direction : &self.direction - 2.0*self.direction.dot(&hit_rec.normal)*&hit_rec.normal,
-                origin: hit_rec.point,
-            };
-            // TODO why 0.5?
-            return 0.5 * ray.get_color(scene_objs, depth - 1);
+            let (scattered_ray, attenuation) = hit_rec.material.scatter(&hit_rec);
+            return attenuation * scattered_ray.get_color(scene_objs, depth - 1);
         }
 
         let unit_dir = 0.5 * (self.direction.unit() + 1.0);
