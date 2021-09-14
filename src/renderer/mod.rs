@@ -20,8 +20,8 @@ impl Ray {
             return array![0.0, 0.0, 0.0];
         }
         let mut hit_rec = HitRecord::new(&Material::None);
-
-        if scene_objs.hit(self, f64::EPSILON..f64::INFINITY, &mut hit_rec) {
+        // TODO Range?
+        if scene_objs.hit(self, 0.001..f64::INFINITY, &mut hit_rec) {
             #[cfg(debug_assertions)]
             if NORMAL {
                 return 0.5
@@ -31,8 +31,17 @@ impl Ray {
                         hit_rec.normal[2] + 1.0
                     ];
             }
-            let (scattered_ray, attenuation) = hit_rec.material.scatter(&hit_rec);
-            return attenuation * scattered_ray.get_color(scene_objs, depth - 1);
+
+            let (scattered_ray, attenuation) = hit_rec.material.scatter(self, &hit_rec);
+            match scattered_ray {
+                Some(mut ray) => {
+                    if ray.direction.is_near_zero() {
+                        ray.direction.assign(&hit_rec.normal);
+                    }
+                    return attenuation * ray.get_color(scene_objs, depth - 1);
+                }
+                None => return array![0.0, 0.0, 0.0],
+            }
         }
 
         let unit_dir = 0.5 * (self.direction.unit() + 1.0);

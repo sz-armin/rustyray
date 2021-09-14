@@ -59,7 +59,6 @@ impl<'b, 'a: 'b, T: Hit<'b, 'a>> Hit<'b, 'a> for Vec<T> {
         hit_rec: &mut HitRecord<'b>,
     ) -> bool {
         // is there a better way?
-        // let objs_refs: Vec<_> = self.iter().collect();
         let mut temp_rec = HitRecord::new(&Material::None);
         let mut hit_anything = false;
         let mut closet = t_range.end;
