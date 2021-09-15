@@ -58,7 +58,7 @@ fn main() {
         albedo: array![0.8, 0.8, 0.0],
     });
     let material_center = Material::Diffuse(Diffuse {
-        albedo: array![0.7, 0.3, 0.3],
+        albedo: array![0.1, 0.2, 0.5],
     });
     let material_left = Material::Metal(Metal {
         albedo: array![0.8, 0.8, 0.8],
@@ -66,7 +66,7 @@ fn main() {
     });
     let material_right = Material::Metal(Metal {
         albedo: array![0.8, 0.6, 0.2],
-        fuzziness: 1.0,
+        fuzziness: 0.0,
     });
 
     let sphere1 = Object::Sphere(Sphere {
@@ -77,7 +77,7 @@ fn main() {
     let sphere2 = Object::Sphere(Sphere {
         center: array![0.0, 0.0, -1.0],
         radius: 0.5,
-        material: &material_glass,
+        material: &material_center,
     });
     let sphere3 = Object::Sphere(Sphere {
         center: array![-1.0, 0.0, -1.0],
