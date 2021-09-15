@@ -84,15 +84,19 @@ impl<'a> HitRecord<'a> {
 }
 
 #[derive(Builder, Clone)]
-pub struct ViewPort {
-    #[builder(default = "2.0")]
-    pub height: f64,
-    #[builder(default = "3.55")]
-    pub width: f64,
+pub struct Camera {
+    #[builder(default = "90.0")]
+    pub vfov: f64, // Vertical field of view (in degrees)
+    #[builder(default = "16.0 / 9.0")]
+    pub aspect_ratio: f64,
     #[builder(default = "1.0")]
     pub focal_length: f64,
     #[builder(default = "array![0.0, 0.0, 0.0]")]
     pub origin: Array1<f64>,
+    #[builder(setter(skip))]
+    pub view_height: f64,
+    #[builder(setter(skip))]
+    pub view_width: f64,
     #[builder(setter(skip))]
     pub vertical: Array1<f64>,
     #[builder(setter(skip))]
@@ -101,35 +105,38 @@ pub struct ViewPort {
     pub top_left_corner: Array1<f64>,
 }
 
-impl ViewPort {
+impl Camera {
     fn finalize_build(mut self) -> Self {
-        self.horizontal = array![self.width, 0.0, 0.0];
-        self.vertical = array![0.0, self.height, 0.0];
+        let h = (self.vfov.to_radians() / 2.0).tan();
+        self.view_height = 2.0 * h;
+        self.view_width = self.view_height * self.aspect_ratio;
+        self.horizontal = array![self.view_width, 0.0, 0.0];
+        self.vertical = array![0.0, self.view_height, 0.0];
         self.top_left_corner = &self.origin - (&self.horizontal / 2.0) + (&self.vertical / 2.0)
             - array![0.0, 0.0, self.focal_length];
         self
     }
 }
 
-impl Default for ViewPort {
-    fn default() -> Self {
-        ViewPortBuilder::default().build().unwrap().finalize_build()
-    }
-}
-
-#[derive(Builder)]
-pub struct Camera {
-    pub viewport: ViewPort,
-}
-
 impl Default for Camera {
     fn default() -> Self {
-        CameraBuilder::default()
-            .viewport(ViewPort::default())
-            .build()
-            .unwrap()
+        CameraBuilder::default().build().unwrap().finalize_build()
     }
 }
+
+// #[derive(Builder)]
+// pub struct Camera {
+//     pub viewport: ViewPort,
+// }
+
+// impl Default for Camera {
+//     fn default() -> Self {
+//         CameraBuilder::default()
+//             .viewport(ViewPort::default())
+//             .build()
+//             .unwrap()
+//     }
+// }
 
 pub struct Canvas {
     pub width: u32,

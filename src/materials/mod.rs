@@ -20,7 +20,9 @@ impl Scatter for Material {
     }
 }
 
+#[derive(Builder)]
 pub struct Diffuse {
+    #[builder(default = "array![1.0, 1.0, 1.0]")]
     pub albedo: Array1<f64>,
 }
 
@@ -40,8 +42,11 @@ impl Scatter for Diffuse {
     }
 }
 
+#[derive(Builder)]
 pub struct Metal {
+    #[builder(default = "array![1.0, 1.0, 1.0]")]
     pub albedo: Array1<f64>,
+    #[builder(default = "0.0")]
     pub fuzziness: f64,
 }
 
@@ -60,13 +65,26 @@ impl Scatter for Metal {
     }
 }
 
+#[derive(Builder)]
 pub struct Glass {
+    #[builder(default = "1.5")]
     pub ir: f64,
+    #[builder(default = "array![1.0, 1.0, 1.0]")]
     pub albedo: Array1<f64>,
+}
+
+impl Glass {
+    fn reflectance(cosine: f64, ref_idx: f64) -> f64 {
+        // Use Schlick's approximation for reflectance.
+        let mut r0 = (1.0 - ref_idx) / (1.0 + ref_idx);
+        r0 = r0.powi(2);
+        r0 + (1.0 - r0) * (1.0 - cosine).powi(5)
+    }
 }
 
 impl Scatter for Glass {
     fn scatter(&self, ray: &Ray, hit_rec: &HitRecord) -> (Option<Ray>, &Array1<f64>) {
+        let mut rng = thread_rng();
         let irs;
         if hit_rec.front_face {
             irs = (1.0, self.ir);
@@ -78,16 +96,18 @@ impl Scatter for Glass {
         let cos_theta = min_by((-ray.direction.unit()).dot(&hit_rec.normal), 1.0, |x, y| {
             x.partial_cmp(y).expect("Comparing NaN values!")
         });
-        let sin_theta = (1.0 - cos_theta.powf(2.0)).sqrt();
+        let sin_theta = (1.0 - cos_theta.powi(2)).sqrt();
         let out_ray;
-        if irs.0 / irs.1 * sin_theta < 1.0 {
+        if irs.0 / irs.1 * sin_theta > 1.0
+            || Self::reflectance(cos_theta, irs.0 / irs.1) > rng.gen::<f64>()
+        {
             out_ray = Ray {
-                direction: ray.direction.unit().refract(&hit_rec.normal, irs),
+                direction: ray.direction.unit().reflect(&hit_rec.normal),
                 origin: hit_rec.point.clone(),
             };
         } else {
             out_ray = Ray {
-                direction: ray.direction.unit().reflect(&hit_rec.normal),
+                direction: ray.direction.unit().refract(&hit_rec.normal, irs),
                 origin: hit_rec.point.clone(),
             };
         }

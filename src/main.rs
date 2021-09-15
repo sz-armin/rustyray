@@ -1,6 +1,8 @@
 #![allow(unused_imports)]
 #![allow(dead_code)]
 
+use std::{collections::HashMap, f64::consts::PI};
+
 use image::{codecs::png::PngEncoder, EncodableLayout, ImageError};
 use ndarray::{prelude::*, Zip};
 
@@ -50,58 +52,20 @@ fn main() {
     let depth = 50;
 
     // World
-    let material_glass = Material::Glass(Glass{
-        ir: 1.5,
-        albedo: array![1.0, 1.0, 1.0],
-    });
-    let material_ground = Material::Diffuse(Diffuse {
-        albedo: array![0.8, 0.8, 0.0],
-    });
-    let material_center = Material::Diffuse(Diffuse {
-        albedo: array![0.1, 0.2, 0.5],
-    });
-    let material_left = Material::Metal(Metal {
-        albedo: array![0.8, 0.8, 0.8],
-        fuzziness: 0.3,
-    });
-    let material_right = Material::Metal(Metal {
-        albedo: array![0.8, 0.6, 0.2],
-        fuzziness: 0.0,
-    });
-
-    let sphere1 = Object::Sphere(Sphere {
-        center: array![0.0, -100.5, -1.0],
-        radius: 100.0,
-        material: &material_ground,
-    });
-    let sphere2 = Object::Sphere(Sphere {
-        center: array![0.0, 0.0, -1.0],
-        radius: 0.5,
-        material: &material_center,
-    });
-    let sphere3 = Object::Sphere(Sphere {
-        center: array![-1.0, 0.0, -1.0],
-        radius: 0.5,
-        material: &material_glass,
-    });
-    let sphere4 = Object::Sphere(Sphere {
-        center: array![1.0, 0.0, -1.0],
-        radius: 0.5,
-        material: &material_right,
-    });
-
-    let scene_objs = vec![&sphere1, &sphere2, &sphere3, &sphere4];
+    let materials = build_materials();
+    let objs = build_objects(&materials);
+    let scene_objs: Vec<&Object> = objs.iter().collect();
 
     // Camera
     let camera = Camera::default();
 
     // Geometry
     let origin: Array1<f64> = Array1::zeros(3);
-    let vertical = array![0.0, camera.viewport.height, 0.0];
-    let horizontal = array![camera.viewport.width, 0.0, 0.0];
+    let vertical = array![0.0, camera.view_height, 0.0];
+    let horizontal = array![camera.view_width, 0.0, 0.0];
     // TODO why negative?
-    let top_left_corner = &origin - (&horizontal / 2.0) + (&vertical / 2.0)
-        - array![0.0, 0.0, camera.viewport.focal_length];
+    let top_left_corner =
+        &origin - (&horizontal / 2.0) + (&vertical / 2.0) - array![0.0, 0.0, camera.focal_length];
 
     // Progress Bar
     let pixel_count = (canvas.width * canvas.height) as u64;
@@ -129,60 +93,42 @@ fn main() {
     canvas.save().expect("Failed to save file.");
 }
 
-    // let diffuse = Material::Diffuse(Diffuse {
-    //     albedo: array![0.5, 0.5, 0.5] / 0.5,
-    // });
+fn build_materials() -> HashMap<&'static str, Material> {
+    let red_diffuse = Material::Diffuse(
+        DiffuseBuilder::default()
+            .albedo(array![1.0, 0.0, 0.0])
+            .build()
+            .unwrap(),
+    );
+    let blue_diffuse = Material::Diffuse(
+        DiffuseBuilder::default()
+            .albedo(array![0.0, 0.0, 1.0])
+            .build()
+            .unwrap(),
+    );
+    let mut materials = HashMap::new();
+    materials.insert("red_diffuse", red_diffuse);
+    materials.insert("blue_diffuse", blue_diffuse);
+    materials
+}
 
-    // let sphere1 = Object::Sphere(Sphere {
-    //     center: array![0.0, 0.0, -1.0],
-    //     radius: 0.5,
-    //     material: &diffuse[0],
-    // });
-    // let sphere2 = Object::Sphere(Sphere {
-    //     center: array![0.0, -100.5, -1.0],
-    //     radius: 100.0,
-    //     material: &diffuse[0],
-    // });
-
-    // let scene_objs = vec![&sphere1, &sphere2];
-
-
-// Build a hashmap of materials, build a vec of objects, take ref
-
-
-// 2 
-// let material_ground = Material::Diffuse(Diffuse {
-//     albedo: array![0.8, 0.8, 0.0],
-// });
-// let material_center = Material::Diffuse(Diffuse {
-//     albedo: array![0.7, 0.3, 0.3],
-// });
-// let material_left = Material::Metal(Metal {
-//     albedo: array![0.8, 0.8, 0.8],
-// });
-// let material_right = Material::Metal(Metal {
-//     albedo: array![0.8, 0.6, 0.2],
-// });
-
-// let sphere1 = Object::Sphere(Sphere {
-//     center: array![0.0, -100.5, -1.0],
-//     radius: 100.0,
-//     material: &material_ground,
-// });
-// let sphere2 = Object::Sphere(Sphere {
-//     center: array![0.0, 0.0, -1.0],
-//     radius: 0.5,
-//     material: &material_center,
-// });
-// let sphere3 = Object::Sphere(Sphere {
-//     center: array![-1.0, 0.0, -1.0],
-//     radius: 0.5,
-//     material: &material_left,
-// });
-// let sphere4 = Object::Sphere(Sphere {
-//     center: array![1.0, 0.0, -1.0],
-//     radius: 0.5,
-//     material: &material_right,
-// });
-
-// let scene_objs = vec![&sphere1, &sphere2, &sphere3, &sphere4];
+fn build_objects<'a>(materials: &'a HashMap<&'static str, Material>) -> Vec<Object<'a>> {
+    let r = (PI / 4.0).cos();
+    let sphere_right = Object::Sphere(
+        SphereBuilder::default()
+            .center(array![r, 0.0, -1.0])
+            .radius(r)
+            .material(&materials.get("red_diffuse").unwrap())
+            .build()
+            .unwrap(),
+    );
+    let sphere_left = Object::Sphere(
+        SphereBuilder::default()
+            .center(array![-r, 0.0, -1.0])
+            .radius(r)
+            .material(&materials.get("blue_diffuse").unwrap())
+            .build()
+            .unwrap(),
+    );
+    vec![sphere_right, sphere_left]
+}

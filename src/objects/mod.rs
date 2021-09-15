@@ -13,8 +13,11 @@ impl<'b, 'a: 'b> Hit<'b, 'a> for Object<'a> {
     }
 }
 
+#[derive(Builder)]
 pub struct Sphere<'a> {
+    #[builder(default = "array![0.0, 0.0, 0.0]")]
     pub center: Array1<f64>,
+    #[builder(default = "0.5")]
     pub radius: f64,
     pub material: &'a Material,
 }
