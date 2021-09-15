@@ -163,6 +163,6 @@ pub trait Unit {
 
 impl Unit for Array1<f64> {
     fn unit(&self) -> Array1<f64> {
-        self.clone() / (self * self).sum().sqrt()
+        self.clone() / self.dot(self).sqrt()
     }
 }

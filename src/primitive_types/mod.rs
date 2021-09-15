@@ -6,21 +6,44 @@ impl IsNearZero for Array1<f64> {
     }
 }
 
-impl<T: IsNearZero>IsNearZero for &T {
+impl<T: IsNearZero> IsNearZero for &T {
     fn is_near_zero(&self) -> bool {
         (*self).is_near_zero()
     }
 }
 
 impl Reflect for Array1<f64> {
-    fn reflect(&self,criteria: &Array1<f64>) -> Array1<f64> {
+    fn reflect(&self, criteria: &Array1<f64>) -> Array1<f64> {
         self - 2.0 * self.dot(criteria) * criteria
     }
 }
 
-impl<T: Reflect>Reflect for &T {
-    fn reflect(&self,criteria: &Array1<f64>) -> Array1<f64> {
+impl<T: Reflect> Reflect for &T {
+    fn reflect(&self, criteria: &Array1<f64>) -> Array1<f64> {
         (*self).reflect(criteria)
+    }
+}
+
+impl Refract for Array1<f64> {
+    fn refract(&self, normal: &Array1<f64>, irs: (f64, f64)) -> Array1<f64> {
+        // auto cos_theta = fmin(dot(-uv, n), 1.0);
+        // vec3 r_out_perp =  etai_over_etat * (uv + cos_theta*n);
+        // vec3 r_out_parallel = -sqrt(fabs(1.0 - r_out_perp.length_squared())) * n;
+        // return r_out_perp + r_out_parallel;
+
+        let refraction_ratio = irs.0 / irs.1;
+        let cos_theta = std::cmp::min_by((-self).dot(normal), 1.0, |x, y| {
+            x.partial_cmp(y).expect("Comparing NaN values!")
+        });
+        let r_out_perp = refraction_ratio * (self + cos_theta * normal);
+        let r_out_parallel = -((1.0 - r_out_perp.dot(&r_out_perp)).abs()).sqrt() * normal;
+        r_out_perp + r_out_parallel
+    }
+}
+
+impl<T: Refract> Refract for &T {
+    fn refract(&self, normal: &Array1<f64>, irs: (f64, f64)) -> Array1<f64> {
+        (*self).refract(normal, irs)
     }
 }
 
@@ -28,7 +51,10 @@ pub trait IsNearZero {
     fn is_near_zero(&self) -> bool;
 }
 
-
 pub trait Reflect {
     fn reflect(&self, criteria: &Array1<f64>) -> Array1<f64>;
+}
+
+pub trait Refract {
+    fn refract(&self, normal: &Array1<f64>, irs: (f64, f64)) -> Array1<f64>;
 }

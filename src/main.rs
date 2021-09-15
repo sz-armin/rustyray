@@ -50,6 +50,10 @@ fn main() {
     let depth = 50;
 
     // World
+    let material_glass = Material::Glass(Glass{
+        ir: 1.5,
+        albedo: array![1.0, 1.0, 1.0],
+    });
     let material_ground = Material::Diffuse(Diffuse {
         albedo: array![0.8, 0.8, 0.0],
     });
@@ -73,12 +77,12 @@ fn main() {
     let sphere2 = Object::Sphere(Sphere {
         center: array![0.0, 0.0, -1.0],
         radius: 0.5,
-        material: &material_center,
+        material: &material_glass,
     });
     let sphere3 = Object::Sphere(Sphere {
         center: array![-1.0, 0.0, -1.0],
         radius: 0.5,
-        material: &material_left,
+        material: &material_glass,
     });
     let sphere4 = Object::Sphere(Sphere {
         center: array![1.0, 0.0, -1.0],
@@ -112,7 +116,7 @@ fn main() {
             let v = (j as f64 + rng.gen::<f64>()) / (canvas.height - 1) as f64;
             let ray = Ray {
                 origin: Array1::zeros(3),
-                direction: &top_left_corner + u * &horizontal - v * &vertical - &origin,
+                direction: (&top_left_corner + u * &horizontal - v * &vertical - &origin),
             };
             accum_color += &ray.get_color(&scene_objs, depth);
         }
