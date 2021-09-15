@@ -57,15 +57,12 @@ fn main() {
     let scene_objs: Vec<&Object> = objs.iter().collect();
 
     // Camera
-    let camera = Camera::default();
-
-    // Geometry
-    let origin: Array1<f64> = Array1::zeros(3);
-    let vertical = array![0.0, camera.view_height, 0.0];
-    let horizontal = array![camera.view_width, 0.0, 0.0];
-    // TODO why negative?
-    let top_left_corner =
-        &origin - (&horizontal / 2.0) + (&vertical / 2.0) - array![0.0, 0.0, camera.focal_length];
+    let camera = CameraBuilder::default()
+        .origin(array![-2.0, 2.0, 1.0])
+        .vfov(20.0)
+        .build()
+        .unwrap()
+        .finalize_build();
 
     // Progress Bar
     let pixel_count = (canvas.width * canvas.height) as u64;
@@ -78,9 +75,12 @@ fn main() {
             let mut rng = thread_rng();
             let u = (i as f64 + rng.gen::<f64>()) / (canvas.width - 1) as f64;
             let v = (j as f64 + rng.gen::<f64>()) / (canvas.height - 1) as f64;
+            // TODO move to camera
             let ray = Ray {
-                origin: Array1::zeros(3),
-                direction: (&top_left_corner + u * &horizontal - v * &vertical - &origin),
+                origin: camera.origin.clone(),
+                direction: (&camera.top_left_corner + u * &camera.horizontal
+                    - v * &camera.vertical
+                    - &camera.origin),
             };
             accum_color += &ray.get_color(&scene_objs, depth);
         }
@@ -94,41 +94,79 @@ fn main() {
 }
 
 fn build_materials() -> HashMap<&'static str, Material> {
-    let red_diffuse = Material::Diffuse(
+    let material_ground = Material::Diffuse(
         DiffuseBuilder::default()
-            .albedo(array![1.0, 0.0, 0.0])
+            .albedo(array![0.8, 0.8, 0.0])
             .build()
             .unwrap(),
     );
-    let blue_diffuse = Material::Diffuse(
+    let material_center = Material::Diffuse(
         DiffuseBuilder::default()
-            .albedo(array![0.0, 0.0, 1.0])
+            .albedo(array![0.1, 0.2, 0.5])
+            .build()
+            .unwrap(),
+    );
+    let material_left = Material::Glass(GlassBuilder::default().ir(1.5).build().unwrap());
+    let material_right = Material::Metal(
+        MetalBuilder::default()
+            .albedo(array![0.8, 0.6, 0.2])
             .build()
             .unwrap(),
     );
     let mut materials = HashMap::new();
-    materials.insert("red_diffuse", red_diffuse);
-    materials.insert("blue_diffuse", blue_diffuse);
+    materials.insert("material_ground", material_ground);
+    materials.insert("material_center", material_center);
+    materials.insert("material_left", material_left);
+    materials.insert("material_right", material_right);
     materials
 }
 
 fn build_objects<'a>(materials: &'a HashMap<&'static str, Material>) -> Vec<Object<'a>> {
-    let r = (PI / 4.0).cos();
-    let sphere_right = Object::Sphere(
+    let sphere_ground = Object::Sphere(
         SphereBuilder::default()
-            .center(array![r, 0.0, -1.0])
-            .radius(r)
-            .material(&materials.get("red_diffuse").unwrap())
+            .center(array![0.0, -100.5, -1.0])
+            .radius(100.0)
+            .material(&materials.get("material_ground").unwrap())
+            .build()
+            .unwrap(),
+    );
+    let sphere_center = Object::Sphere(
+        SphereBuilder::default()
+            .center(array![0.0, 0.0, -1.0])
+            .radius(0.5)
+            .material(&materials.get("material_center").unwrap())
             .build()
             .unwrap(),
     );
     let sphere_left = Object::Sphere(
         SphereBuilder::default()
-            .center(array![-r, 0.0, -1.0])
-            .radius(r)
-            .material(&materials.get("blue_diffuse").unwrap())
+            .center(array![-1.0, 0.0, -1.0])
+            .radius(0.5)
+            .material(&materials.get("material_left").unwrap())
             .build()
             .unwrap(),
     );
-    vec![sphere_right, sphere_left]
+    let sphere_inside = Object::Sphere(
+        SphereBuilder::default()
+            .center(array![-1.0, 0.0, -1.0])
+            .radius(-0.45)
+            .material(&materials.get("material_left").unwrap())
+            .build()
+            .unwrap(),
+    );
+    let sphere_right = Object::Sphere(
+        SphereBuilder::default()
+            .center(array![1.0, 0.0, -1.0])
+            .radius(0.5)
+            .material(&materials.get("material_right").unwrap())
+            .build()
+            .unwrap(),
+    );
+    vec![
+        sphere_ground,
+        sphere_center,
+        sphere_left,
+        sphere_inside,
+        sphere_right,
+    ]
 }

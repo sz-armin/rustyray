@@ -47,6 +47,21 @@ impl<T: Refract> Refract for &T {
     }
 }
 
+impl Unit for Array1<f64> {
+    fn unit(&self) -> Array1<f64> {
+        self.clone() / self.dot(self).sqrt()
+    }
+}
+
+impl Cross for Array1<f64> {
+    fn cross(&self, b: &Array1<f64>) -> Array1<f64> {
+        let rx = self[1] * b[2] - self[2] * b[1];
+        let ry = self[2] * b[0] - self[0] * b[2];
+        let rz = self[0] * b[1] - self[1] * b[0];
+        array![rx, ry, rz]
+    }
+}
+
 pub trait IsNearZero {
     fn is_near_zero(&self) -> bool;
 }
@@ -57,4 +72,12 @@ pub trait Reflect {
 
 pub trait Refract {
     fn refract(&self, normal: &Array1<f64>, irs: (f64, f64)) -> Array1<f64>;
+}
+
+pub trait Unit {
+    fn unit(&self) -> Array1<f64>;
+}
+
+pub trait Cross {
+    fn cross(&self, array2: &Array1<f64>) -> Array1<f64>;
 }
