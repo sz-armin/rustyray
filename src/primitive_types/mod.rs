@@ -26,11 +26,6 @@ impl<T: Reflect> Reflect for &T {
 
 impl Refract for Array1<f64> {
     fn refract(&self, normal: &Array1<f64>, irs: (f64, f64)) -> Array1<f64> {
-        // auto cos_theta = fmin(dot(-uv, n), 1.0);
-        // vec3 r_out_perp =  etai_over_etat * (uv + cos_theta*n);
-        // vec3 r_out_parallel = -sqrt(fabs(1.0 - r_out_perp.length_squared())) * n;
-        // return r_out_perp + r_out_parallel;
-
         let refraction_ratio = irs.0 / irs.1;
         let cos_theta = std::cmp::min_by((-self).dot(normal), 1.0, |x, y| {
             x.partial_cmp(y).expect("Comparing NaN values!")
