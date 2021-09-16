@@ -1,5 +1,4 @@
 use super::*;
-use std::{borrow::Borrow, mem::ManuallyDrop};
 
 pub enum Object<'a> {
     Sphere(Sphere<'a>),
@@ -27,7 +26,6 @@ impl<'b, 'a: 'b> Hit<'b, 'a> for Sphere<'a> {
         let oc = &ray.origin - &self.center;
         let a = ray.direction.dot(&ray.direction);
         let half_b = oc.dot(&ray.direction);
-        // TODO i?
         let c = oc.dot(&oc) - self.radius.powi(2);
 
         let discriminant = half_b.powi(2) - a * c;
@@ -47,7 +45,7 @@ impl<'b, 'a: 'b> Hit<'b, 'a> for Sphere<'a> {
         hit_rec.t = root;
         hit_rec.point = ray.at(hit_rec.t);
         let outward_normal = (&hit_rec.point - &self.center) / self.radius;
-        hit_rec.set_face_normal(ray, &outward_normal);
+        hit_rec.set_face_normal(ray, outward_normal);
         hit_rec.material = self.material;
 
         true

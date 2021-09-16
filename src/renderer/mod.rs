@@ -1,8 +1,4 @@
-use std::{default, io::ErrorKind};
-
 use super::*;
-
-use std::pin::Pin;
 
 #[derive(Debug)]
 pub struct Ray {
@@ -73,10 +69,10 @@ impl<'a> HitRecord<'a> {
             material: material,
         }
     }
-    pub fn set_face_normal(&mut self, ray: &Ray, outward_normal: &Array1<f64>) {
-        self.front_face = ray.direction.dot(outward_normal) < 0.0;
+    pub fn set_face_normal(&mut self, ray: &Ray, outward_normal: Array1<f64>) {
+        self.front_face = ray.direction.dot(&outward_normal) < 0.0;
         if self.front_face {
-            self.normal = outward_normal.clone();
+            self.normal = outward_normal;
         } else {
             self.normal = -outward_normal;
         }

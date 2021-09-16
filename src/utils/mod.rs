@@ -1,8 +1,6 @@
 use super::*;
-use ndarray::stack;
 use ndarray_rand::rand_distr::{Distribution, Uniform};
 use ndarray_rand::RandomExt;
-use rand::prelude::ThreadRng;
 
 pub fn random_in_unit_sphere() -> Array1<f64> {
     loop {

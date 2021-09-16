@@ -1,12 +1,13 @@
-#![allow(unused_imports)]
-#![allow(dead_code)]
-
-use std::{collections::HashMap, f64::consts::PI};
+use std::{collections::HashMap};
 
 use image::{codecs::png::PngEncoder, EncodableLayout, ImageError};
 use ndarray::{prelude::*, Zip};
 
+use ndarray_rand::rand_distr::num_traits::Float;
 use rayon::prelude::*;
+
+use ndarray_rand::rand_distr::{Uniform};
+use ndarray_rand::RandomExt;
 
 use rand::*;
 
@@ -29,26 +30,24 @@ use primitive_types::*;
 
 use indicatif::ProgressBar;
 
-const SCENE: u32 = 1;
-
 #[cfg(debug_assertions)]
 const NORMAL: bool = true;
 
 fn main() {
     // Set the number of threads
     rayon::ThreadPoolBuilder::new()
-        .num_threads(16)
+        .num_threads(1)
         .build_global()
         .unwrap();
 
     // Image
     let mut canvas = Canvas {
-        width: 400,
-        height: 225,
-        aspect_ratio: 16.0 / 9.0,
-        buffer: Array3::zeros((225, 400, 3)),
+        width: 300,
+        height: 200,
+        aspect_ratio: 3.0 / 2.0,
+        buffer: Array3::zeros((200, 300, 3)),
     };
-    let samples_per_pix = 100;
+    let samples_per_pix = 25;
     let depth = 50;
 
     // World
@@ -58,9 +57,12 @@ fn main() {
 
     // Camera
     let camera = CameraBuilder::default()
-        .origin(array![3.0, 3.0, 2.0])
+        .aspect_ratio(canvas.aspect_ratio)
+        .origin(array![13.0, 2.0, 3.0])
         .vfov(20.0)
-        .focus_dist(5.19)
+        .focus_dist(10.0)
+        .look_at(array![0.0, 0.0, 0.0])
+        .aperture(0.1)
         .build()
         .unwrap()
         .finalize_build();
@@ -70,10 +72,10 @@ fn main() {
     let progress_bar = ProgressBar::new(pixel_count);
 
     // Render
-    Zip::indexed(canvas.buffer.lanes_mut(Axis(2))).par_for_each(|(j, i), mut pixel| {
+    Zip::indexed(canvas.buffer.lanes_mut(Axis(2))).for_each(|(j, i), mut pixel| {
         let mut accum_color = array![0.0, 0.0, 0.0];
+        let mut rng = thread_rng();
         for _ in 0..samples_per_pix {
-            let mut rng = thread_rng();
             let u = (i as f64 + rng.gen::<f64>()) / (canvas.width - 1) as f64;
             let v = (j as f64 + rng.gen::<f64>()) / (canvas.height - 1) as f64;
             // TODO move to camera
@@ -89,80 +91,125 @@ fn main() {
     canvas.save().expect("Failed to save file.");
 }
 
-fn build_materials() -> HashMap<&'static str, Material> {
+fn build_materials() -> HashMap<String, Material> {
+    let mut materials = HashMap::new();
+
+    let mut rng = thread_rng();
+    for i in 0..484 {
+        let choose_mat = rng.gen::<f64>();
+        if choose_mat < 0.8 {
+            let albedo = Array1::random(3, Uniform::new(0.0, 1.0)).mapv(|x| x.powi(2));
+            let material =
+                Material::Diffuse(DiffuseBuilder::default().albedo(albedo).build().unwrap());
+            materials.insert(format!("{}", i), material);
+        } else if choose_mat < 0.95 {
+            let albedo = Array1::random(3, Uniform::new(0.5, 1.0));
+            let fuzz = rng.gen::<f64>() / 2.0;
+            let material = Material::Metal(
+                MetalBuilder::default()
+                    .albedo(albedo)
+                    .fuzziness(fuzz)
+                    .build()
+                    .unwrap(),
+            );
+            materials.insert(format!("{}", i), material);
+        } else {
+            let material = Material::Glass(GlassBuilder::default().ir(1.5).build().unwrap());
+            materials.insert(format!("{}", i), material);
+        }
+    }
+
     let material_ground = Material::Diffuse(
         DiffuseBuilder::default()
-            .albedo(array![0.8, 0.8, 0.0])
+            .albedo(array![0.5, 0.5, 0.5])
             .build()
             .unwrap(),
     );
-    let material_center = Material::Diffuse(
+    let sphere2 = Material::Diffuse(
         DiffuseBuilder::default()
-            .albedo(array![0.1, 0.2, 0.5])
+            .albedo(array![0.4, 0.2, 0.1])
             .build()
             .unwrap(),
     );
-    let material_left = Material::Glass(GlassBuilder::default().ir(1.5).build().unwrap());
-    let material_right = Material::Metal(
+    let sphere1 = Material::Glass(GlassBuilder::default().ir(1.5).build().unwrap());
+    let sphere3 = Material::Metal(
         MetalBuilder::default()
-            .albedo(array![0.8, 0.6, 0.2])
+            .albedo(array![0.7, 0.6, 0.5])
             .build()
             .unwrap(),
     );
-    let mut materials = HashMap::new();
-    materials.insert("material_ground", material_ground);
-    materials.insert("material_center", material_center);
-    materials.insert("material_left", material_left);
-    materials.insert("material_right", material_right);
+
+    materials.insert("material_ground".to_string(), material_ground);
+    materials.insert("sphere1".to_string(), sphere1);
+    materials.insert("sphere2".to_string(), sphere2);
+    materials.insert("sphere3".to_string(), sphere3);
     materials
 }
 
-fn build_objects<'a>(materials: &'a HashMap<&'static str, Material>) -> Vec<Object<'a>> {
+fn build_objects<'a>(materials: &'a HashMap<String, Material>) -> Vec<Object<'a>> {
+    let mut rng = thread_rng();
+    let mut objects = vec![];
+    let mut counter = 0;
+
+    for a in -11..11 {
+        for b in -11..11 {
+            // let choose_mat = rng.gen::<f64>();
+            let center = array![
+                a as f64 + 0.9 * rng.gen::<f64>(),
+                0.2,
+                b as f64 + 0.9 * rng.gen::<f64>()
+            ];
+            let temp = &center - array![4.0, 0.2, 0.0];
+            if temp.dot(&temp).sqrt() > 0.9 {
+                let sphere = Object::Sphere(
+                    SphereBuilder::default()
+                        .center(center.clone())
+                        .radius(0.2)
+                        .material(&materials.get(&format!("{}", counter)).unwrap())
+                        .build()
+                        .unwrap(),
+                );
+                objects.push(sphere);
+                counter += 1;
+            }
+        }
+    }
+
     let sphere_ground = Object::Sphere(
         SphereBuilder::default()
-            .center(array![0.0, -100.5, -1.0])
-            .radius(100.0)
+            .center(array![0.0, -1000.0, 0.0])
+            .radius(1000.0)
             .material(&materials.get("material_ground").unwrap())
             .build()
             .unwrap(),
     );
-    let sphere_center = Object::Sphere(
+    let sphere1 = Object::Sphere(
         SphereBuilder::default()
-            .center(array![0.0, 0.0, -1.0])
-            .radius(0.5)
-            .material(&materials.get("material_center").unwrap())
+            .center(array![0.0, 1.0, 0.0])
+            .radius(1.0)
+            .material(&materials.get("sphere1").unwrap())
             .build()
             .unwrap(),
     );
-    let sphere_left = Object::Sphere(
+    let sphere2 = Object::Sphere(
         SphereBuilder::default()
-            .center(array![-1.0, 0.0, -1.0])
-            .radius(0.5)
-            .material(&materials.get("material_left").unwrap())
+            .center(array![-4.0, 1.0, 0.0])
+            .radius(1.0)
+            .material(&materials.get("sphere2").unwrap())
             .build()
             .unwrap(),
     );
-    let sphere_inside = Object::Sphere(
+    let sphere3 = Object::Sphere(
         SphereBuilder::default()
-            .center(array![-1.0, 0.0, -1.0])
-            .radius(-0.45)
-            .material(&materials.get("material_left").unwrap())
+            .center(array![4.0, 1.0, 0.0])
+            .radius(1.0)
+            .material(&materials.get("sphere3").unwrap())
             .build()
             .unwrap(),
     );
-    let sphere_right = Object::Sphere(
-        SphereBuilder::default()
-            .center(array![1.0, 0.0, -1.0])
-            .radius(0.5)
-            .material(&materials.get("material_right").unwrap())
-            .build()
-            .unwrap(),
-    );
-    vec![
-        sphere_ground,
-        sphere_center,
-        sphere_left,
-        sphere_inside,
-        sphere_right,
-    ]
+    objects.push(sphere_ground);
+    objects.push(sphere1);
+    objects.push(sphere2);
+    objects.push(sphere3);
+    objects
 }
