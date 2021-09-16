@@ -77,23 +77,6 @@ impl<'b, 'a: 'b, T: Hit<'b, 'a>> Hit<'b, 'a> for Vec<T> {
     }
 }
 
-// impl Hit for Vec<&Object> {
-//     fn hit(&self, ray: &Ray, t_range: std::ops::Range<f64>, hit_rec: &mut HitRecord) -> bool {
-//         let mut temp_rec = HitRecord::new();
-//         let mut hit_anything = false;
-//         let mut closet = t_range.end;
-//         // TODO is there a better way?
-//         for obj in self {
-//             if obj.hit(ray, 0.0..closet, &mut temp_rec) {
-//                 hit_anything = true;
-//                 closet = temp_rec.t;
-//                 *hit_rec = temp_rec.clone();
-//             }
-//         }
-//         hit_anything
-//     }
-// }
-
 impl<'b, 'a: 'b, T: Hit<'b, 'a>> Hit<'b, 'a> for &'_ T {
     fn hit(&self, ray: &Ray, t_range: std::ops::Range<f64>, hit_rec: &mut HitRecord<'b>) -> bool {
         (*self).hit(ray, t_range, hit_rec)

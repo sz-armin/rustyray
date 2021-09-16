@@ -90,7 +90,7 @@ pub struct Camera {
     #[builder(default = "array![0.0, 0.0, -1.0]")]
     pub look_at: Array1<f64>,
     #[builder(default = "array![0.0, 1.0, 0.0]")]
-    pub vup: Array1<f64>, 
+    pub vup: Array1<f64>,
 
     #[builder(setter(skip))]
     pub view_height: f64,
@@ -102,6 +102,13 @@ pub struct Camera {
     pub aspect_ratio: f64,
     #[builder(default = "1.0")]
     pub focal_length: f64,
+
+    #[builder(default = "2.0")]
+    pub aperture: f64,
+    pub focus_dist: f64,
+    #[builder(default = "1.0")]
+    #[builder(setter(skip))]
+    lens_radius: f64,
 
     #[builder(setter(skip))]
     pub w: Array1<f64>,
@@ -128,10 +135,25 @@ impl Camera {
         self.view_height = 2.0 * h;
         self.view_width = self.view_height * self.aspect_ratio;
 
-        self.horizontal = self.view_width * &self.u;
-        self.vertical = self.view_height * &self.v;
-        self.top_left_corner = &self.origin - (&self.horizontal / 2.0) + (&self.vertical / 2.0) - &self.w;
+        self.horizontal = self.focus_dist * self.view_width * &self.u;
+        self.vertical = self.focus_dist * self.view_height * &self.v;
+        self.top_left_corner =
+            &self.origin - (&self.horizontal / 2.0) + (&self.vertical / 2.0) - self.focus_dist * &self.w;
+
+        self.lens_radius = self.aperture / 2.0;
+
         self
+    }
+    pub fn get_ray(&self, s: f64, t: f64) -> Ray {
+        let rd = self.lens_radius * random_in_unit_disk();
+        let offset = &self.u * rd[0] + &self.v * rd[1];
+
+        Ray {
+            origin: self.origin.clone() + &offset,
+            direction: (&self.top_left_corner + s * &self.horizontal
+                - t * &self.vertical
+                - &self.origin - &offset),
+        }
     }
 }
 
@@ -140,20 +162,6 @@ impl Default for Camera {
         CameraBuilder::default().build().unwrap().finalize_build()
     }
 }
-
-// #[derive(Builder)]
-// pub struct Camera {
-//     pub viewport: ViewPort,
-// }
-
-// impl Default for Camera {
-//     fn default() -> Self {
-//         CameraBuilder::default()
-//             .viewport(ViewPort::default())
-//             .build()
-//             .unwrap()
-//     }
-// }
 
 pub struct Canvas {
     pub width: u32,
@@ -180,4 +188,3 @@ impl Canvas {
         Ok(())
     }
 }
-

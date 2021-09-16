@@ -58,8 +58,9 @@ fn main() {
 
     // Camera
     let camera = CameraBuilder::default()
-        .origin(array![-2.0, 2.0, 1.0])
+        .origin(array![3.0, 3.0, 2.0])
         .vfov(20.0)
+        .focus_dist(5.19)
         .build()
         .unwrap()
         .finalize_build();
@@ -76,12 +77,7 @@ fn main() {
             let u = (i as f64 + rng.gen::<f64>()) / (canvas.width - 1) as f64;
             let v = (j as f64 + rng.gen::<f64>()) / (canvas.height - 1) as f64;
             // TODO move to camera
-            let ray = Ray {
-                origin: camera.origin.clone(),
-                direction: (&camera.top_left_corner + u * &camera.horizontal
-                    - v * &camera.vertical
-                    - &camera.origin),
-            };
+            let ray = camera.get_ray(u, v);
             accum_color += &ray.get_color(&scene_objs, depth);
         }
         // TODO allow manual gamma correction
