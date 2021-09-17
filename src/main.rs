@@ -1,13 +1,13 @@
-use std::{collections::HashMap};
+use std::collections::HashMap;
 
 use image::{codecs::png::PngEncoder, EncodableLayout, ImageError};
 use ndarray::{prelude::*, Zip};
 
-use ndarray_rand::rand_distr::num_traits::Float;
+#[allow(unused_imports)]
 use rayon::prelude::*;
 
-use ndarray_rand::rand_distr::{Uniform};
-use ndarray_rand::RandomExt;
+use rand::distributions::Distribution;
+use rand::distributions::Uniform;
 
 use rand::*;
 
@@ -30,24 +30,26 @@ use primitive_types::*;
 
 use indicatif::ProgressBar;
 
+use nalgebra::*;
+
 #[cfg(debug_assertions)]
 const NORMAL: bool = true;
 
 fn main() {
     // Set the number of threads
     rayon::ThreadPoolBuilder::new()
-        .num_threads(1)
+        .num_threads(16)
         .build_global()
         .unwrap();
 
     // Image
     let mut canvas = Canvas {
-        width: 300,
-        height: 200,
+        width: 1200,
+        height: 800,
         aspect_ratio: 3.0 / 2.0,
-        buffer: Array3::zeros((200, 300, 3)),
+        buffer: Array3::zeros((800, 1200, 3)),
     };
-    let samples_per_pix = 25;
+    let samples_per_pix = 1000;
     let depth = 50;
 
     // World
@@ -58,10 +60,10 @@ fn main() {
     // Camera
     let camera = CameraBuilder::default()
         .aspect_ratio(canvas.aspect_ratio)
-        .origin(array![13.0, 2.0, 3.0])
+        .origin(vector![13.0, 2.0, 3.0])
         .vfov(20.0)
         .focus_dist(10.0)
-        .look_at(array![0.0, 0.0, 0.0])
+        .look_at(vector![0.0, 0.0, 0.0])
         .aperture(0.1)
         .build()
         .unwrap()
@@ -72,8 +74,8 @@ fn main() {
     let progress_bar = ProgressBar::new(pixel_count);
 
     // Render
-    Zip::indexed(canvas.buffer.lanes_mut(Axis(2))).for_each(|(j, i), mut pixel| {
-        let mut accum_color = array![0.0, 0.0, 0.0];
+    Zip::indexed(canvas.buffer.lanes_mut(Axis(2))).par_for_each(|(j, i), mut pixel| {
+        let mut accum_color = vector![0.0, 0.0, 0.0];
         let mut rng = thread_rng();
         for _ in 0..samples_per_pix {
             let u = (i as f64 + rng.gen::<f64>()) / (canvas.width - 1) as f64;
@@ -83,7 +85,13 @@ fn main() {
             accum_color += &ray.get_color(&scene_objs, depth);
         }
         // TODO allow manual gamma correction
-        pixel.assign(&(&accum_color / samples_per_pix as f64).mapv(|x| x.sqrt()));
+        let arr = Array1::from_iter(
+            (accum_color / samples_per_pix as f64)
+                .map(|x| x.sqrt())
+                .into_iter()
+                .cloned(),
+        );
+        pixel.assign(&arr);
         progress_bar.inc(1);
     });
 
@@ -98,12 +106,13 @@ fn build_materials() -> HashMap<String, Material> {
     for i in 0..484 {
         let choose_mat = rng.gen::<f64>();
         if choose_mat < 0.8 {
-            let albedo = Array1::random(3, Uniform::new(0.0, 1.0)).mapv(|x| x.powi(2));
+            let albedo =
+                Vector3::from_distribution(&Uniform::new(0.0, 1.0), &mut rng).map(|x| x * x);
             let material =
                 Material::Diffuse(DiffuseBuilder::default().albedo(albedo).build().unwrap());
             materials.insert(format!("{}", i), material);
         } else if choose_mat < 0.95 {
-            let albedo = Array1::random(3, Uniform::new(0.5, 1.0));
+            let albedo = Vector3::from_distribution(&Uniform::new(0.5, 1.0), &mut rng);
             let fuzz = rng.gen::<f64>() / 2.0;
             let material = Material::Metal(
                 MetalBuilder::default()
@@ -121,20 +130,20 @@ fn build_materials() -> HashMap<String, Material> {
 
     let material_ground = Material::Diffuse(
         DiffuseBuilder::default()
-            .albedo(array![0.5, 0.5, 0.5])
+            .albedo(vector![0.5, 0.5, 0.5])
             .build()
             .unwrap(),
     );
     let sphere2 = Material::Diffuse(
         DiffuseBuilder::default()
-            .albedo(array![0.4, 0.2, 0.1])
+            .albedo(vector![0.4, 0.2, 0.1])
             .build()
             .unwrap(),
     );
     let sphere1 = Material::Glass(GlassBuilder::default().ir(1.5).build().unwrap());
     let sphere3 = Material::Metal(
         MetalBuilder::default()
-            .albedo(array![0.7, 0.6, 0.5])
+            .albedo(vector![0.7, 0.6, 0.5])
             .build()
             .unwrap(),
     );
@@ -154,12 +163,12 @@ fn build_objects<'a>(materials: &'a HashMap<String, Material>) -> Vec<Object<'a>
     for a in -11..11 {
         for b in -11..11 {
             // let choose_mat = rng.gen::<f64>();
-            let center = array![
+            let center = vector![
                 a as f64 + 0.9 * rng.gen::<f64>(),
                 0.2,
                 b as f64 + 0.9 * rng.gen::<f64>()
             ];
-            let temp = &center - array![4.0, 0.2, 0.0];
+            let temp = &center - vector![4.0, 0.2, 0.0];
             if temp.dot(&temp).sqrt() > 0.9 {
                 let sphere = Object::Sphere(
                     SphereBuilder::default()
@@ -177,7 +186,7 @@ fn build_objects<'a>(materials: &'a HashMap<String, Material>) -> Vec<Object<'a>
 
     let sphere_ground = Object::Sphere(
         SphereBuilder::default()
-            .center(array![0.0, -1000.0, 0.0])
+            .center(vector![0.0, -1000.0, 0.0])
             .radius(1000.0)
             .material(&materials.get("material_ground").unwrap())
             .build()
@@ -185,7 +194,7 @@ fn build_objects<'a>(materials: &'a HashMap<String, Material>) -> Vec<Object<'a>
     );
     let sphere1 = Object::Sphere(
         SphereBuilder::default()
-            .center(array![0.0, 1.0, 0.0])
+            .center(vector![0.0, 1.0, 0.0])
             .radius(1.0)
             .material(&materials.get("sphere1").unwrap())
             .build()
@@ -193,7 +202,7 @@ fn build_objects<'a>(materials: &'a HashMap<String, Material>) -> Vec<Object<'a>
     );
     let sphere2 = Object::Sphere(
         SphereBuilder::default()
-            .center(array![-4.0, 1.0, 0.0])
+            .center(vector![-4.0, 1.0, 0.0])
             .radius(1.0)
             .material(&materials.get("sphere2").unwrap())
             .build()
@@ -201,7 +210,7 @@ fn build_objects<'a>(materials: &'a HashMap<String, Material>) -> Vec<Object<'a>
     );
     let sphere3 = Object::Sphere(
         SphereBuilder::default()
-            .center(array![4.0, 1.0, 0.0])
+            .center(vector![4.0, 1.0, 0.0])
             .radius(1.0)
             .material(&materials.get("sphere3").unwrap())
             .build()

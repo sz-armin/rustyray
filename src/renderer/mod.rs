@@ -2,8 +2,8 @@ use super::*;
 
 #[derive(Debug)]
 pub struct Ray {
-    pub origin: Array1<f64>,
-    pub direction: Array1<f64>,
+    pub origin: Vector3<f64>,
+    pub direction: Vector3<f64>,
 }
 
 impl Ray {
@@ -11,9 +11,9 @@ impl Ray {
         &self,
         scene_objs: &'a T,
         depth: u32,
-    ) -> Array1<f64> {
+    ) -> Vector3<f64> {
         if depth == 0 {
-            return array![0.0, 0.0, 0.0];
+            return vector![0.0, 0.0, 0.0];
         }
         let mut hit_rec = HitRecord::new(&Material::None);
         // TODO Range?
@@ -21,7 +21,7 @@ impl Ray {
             #[cfg(debug_assertions)]
             if NORMAL {
                 return 0.5
-                    * array![
+                    * vector![
                         hit_rec.normal[0] + 1.0,
                         hit_rec.normal[1] + 1.0,
                         hit_rec.normal[2] + 1.0
@@ -32,28 +32,30 @@ impl Ray {
             match scattered_ray {
                 Some(mut ray) => {
                     if ray.direction.is_near_zero() {
-                        ray.direction.assign(&hit_rec.normal);
+                        ray.direction = hit_rec.normal;
                     }
-                    return attenuation * ray.get_color(scene_objs, depth - 1);
+                    return ray
+                        .get_color(scene_objs, depth - 1)
+                        .component_mul(attenuation);
                 }
-                None => return array![0.0, 0.0, 0.0],
+                None => return vector![0.0, 0.0, 0.0],
             }
         }
 
-        let unit_dir = 0.5 * (self.direction.unit() + 1.0);
+        let unit_dir = 0.5 * (self.direction.normalize().add_scalar(1.0));
         // Colors
-        (1.0 - unit_dir[1]) * array![1.0, 1.0, 1.0] + unit_dir[1] * array![0.5, 0.7, 1.0]
+        (1.0 - unit_dir[1]) * vector![1.0, 1.0, 1.0] + unit_dir[1] * vector![0.5, 0.7, 1.0]
     }
 
-    pub fn at(&self, t: f64) -> Array1<f64> {
+    pub fn at(&self, t: f64) -> Vector3<f64> {
         &self.origin + t * &self.direction
     }
 }
 
 #[derive(Clone)]
 pub struct HitRecord<'a> {
-    pub point: Array1<f64>,
-    pub normal: Array1<f64>,
+    pub point: Vector3<f64>,
+    pub normal: Vector3<f64>,
     pub t: f64,
     pub front_face: bool,
     pub material: &'a Material,
@@ -62,14 +64,14 @@ pub struct HitRecord<'a> {
 impl<'a> HitRecord<'a> {
     pub fn new(material: &'a Material) -> Self {
         HitRecord {
-            point: Array1::zeros(3),
-            normal: Array1::zeros(3),
+            point: Vector3::zeros(),
+            normal: Vector3::zeros(),
             t: 0.0,
             front_face: true,
             material: material,
         }
     }
-    pub fn set_face_normal(&mut self, ray: &Ray, outward_normal: Array1<f64>) {
+    pub fn set_face_normal(&mut self, ray: &Ray, outward_normal: Vector3<f64>) {
         self.front_face = ray.direction.dot(&outward_normal) < 0.0;
         if self.front_face {
             self.normal = outward_normal;
@@ -81,12 +83,12 @@ impl<'a> HitRecord<'a> {
 
 #[derive(Builder, Clone)]
 pub struct Camera {
-    #[builder(default = "array![0.0, 0.0, 0.0]")]
-    pub origin: Array1<f64>,
-    #[builder(default = "array![0.0, 0.0, -1.0]")]
-    pub look_at: Array1<f64>,
-    #[builder(default = "array![0.0, 1.0, 0.0]")]
-    pub vup: Array1<f64>,
+    #[builder(default = "vector![0.0, 0.0, 0.0]")]
+    pub origin: Vector3<f64>,
+    #[builder(default = "vector![0.0, 0.0, -1.0]")]
+    pub look_at: Vector3<f64>,
+    #[builder(default = "vector![0.0, 1.0, 0.0]")]
+    pub vup: Vector3<f64>,
 
     #[builder(setter(skip))]
     pub view_height: f64,
@@ -107,24 +109,24 @@ pub struct Camera {
     lens_radius: f64,
 
     #[builder(setter(skip))]
-    pub w: Array1<f64>,
+    pub w: Vector3<f64>,
     #[builder(setter(skip))]
-    pub u: Array1<f64>,
+    pub u: Vector3<f64>,
     #[builder(setter(skip))]
-    pub v: Array1<f64>,
+    pub v: Vector3<f64>,
 
     #[builder(setter(skip))]
-    pub vertical: Array1<f64>,
+    pub vertical: Vector3<f64>,
     #[builder(setter(skip))]
-    pub horizontal: Array1<f64>,
+    pub horizontal: Vector3<f64>,
     #[builder(setter(skip))]
-    pub top_left_corner: Array1<f64>,
+    pub top_left_corner: Vector3<f64>,
 }
 
 impl Camera {
     pub fn finalize_build(mut self) -> Self {
-        self.w = (&self.origin - &self.look_at).unit();
-        self.u = self.vup.cross(&self.w).unit();
+        self.w = (&self.origin - &self.look_at).normalize();
+        self.u = self.vup.cross(&self.w).normalize();
         self.v = self.w.cross(&self.u);
 
         let h = (self.vfov.to_radians() / 2.0).tan();
@@ -133,8 +135,8 @@ impl Camera {
 
         self.horizontal = self.focus_dist * self.view_width * &self.u;
         self.vertical = self.focus_dist * self.view_height * &self.v;
-        self.top_left_corner =
-            &self.origin - (&self.horizontal / 2.0) + (&self.vertical / 2.0) - self.focus_dist * &self.w;
+        self.top_left_corner = &self.origin - (&self.horizontal / 2.0) + (&self.vertical / 2.0)
+            - self.focus_dist * &self.w;
 
         self.lens_radius = self.aperture / 2.0;
 
@@ -148,7 +150,8 @@ impl Camera {
             origin: self.origin.clone() + &offset,
             direction: (&self.top_left_corner + s * &self.horizontal
                 - t * &self.vertical
-                - &self.origin - &offset),
+                - &self.origin
+                - &offset),
         }
     }
 }
