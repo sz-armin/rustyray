@@ -11,7 +11,7 @@ use rand::distributions::Uniform;
 
 use rand::*;
 
-use derive_builder::Builder;
+use derive_builder::*;
 
 mod utils;
 use utils::*;
@@ -43,14 +43,13 @@ fn main() {
         .unwrap();
 
     // Image
-    let mut canvas = Canvas {
-        width: 600,
-        height: 400,
-        aspect_ratio: 3.0 / 2.0,
-        buffer: Array3::zeros((400, 600, 3)),
-    };
-    let samples_per_pix = 100;
-    let depth = 10;
+    let mut canvas = CanvasBuilder::default()
+        .width(600)
+        .height(400)
+        .build()
+        .unwrap();
+    let samples_per_pix = 250;
+    let depth = 50;
 
     // World
     let materials = build_materials();
@@ -66,8 +65,7 @@ fn main() {
         .look_at(vector![0.0, 0.0, 0.0])
         .aperture(0.1)
         .build()
-        .unwrap()
-        .finalize_build();
+        .unwrap();
 
     // Progress Bar
     let pixel_count = (canvas.width * canvas.height) as u64;

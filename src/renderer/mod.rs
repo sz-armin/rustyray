@@ -1,5 +1,8 @@
 use super::*;
 
+mod camera;
+pub use camera::*;
+
 #[derive(Debug)]
 pub struct Ray {
     pub origin: Vector3<f64>,
@@ -82,91 +85,13 @@ impl<'a> HitRecord<'a> {
 }
 
 #[derive(Builder, Debug)]
-pub struct Camera {
-    #[builder(default = "vector![0.0, 0.0, 0.0]")]
-    pub origin: Vector3<f64>,
-    #[builder(default = "vector![0.0, 0.0, -1.0]")]
-    pub look_at: Vector3<f64>,
-    #[builder(default = "vector![0.0, 1.0, 0.0]")]
-    pub vup: Vector3<f64>,
-
-    #[builder(setter(skip))]
-    pub view_height: f64,
-    #[builder(setter(skip))]
-    pub view_width: f64,
-    #[builder(default = "90.0")]
-    pub vfov: f64, // Vertical field of view (in degrees)
-    #[builder(default = "16.0 / 9.0")]
-    pub aspect_ratio: f64,
-    #[builder(default = "1.0")]
-    pub focal_length: f64,
-
-    #[builder(default = "2.0")]
-    pub aperture: f64,
-    pub focus_dist: f64,
-    #[builder(default = "1.0")]
-    #[builder(setter(skip))]
-    lens_radius: f64,
-
-    #[builder(setter(skip))]
-    pub w: Vector3<f64>,
-    #[builder(setter(skip))]
-    pub u: Vector3<f64>,
-    #[builder(setter(skip))]
-    pub v: Vector3<f64>,
-
-    #[builder(setter(skip))]
-    pub vertical: Vector3<f64>,
-    #[builder(setter(skip))]
-    pub horizontal: Vector3<f64>,
-    #[builder(setter(skip))]
-    pub top_left_corner: Vector3<f64>,
-}
-
-impl Camera {
-    pub fn finalize_build(mut self) -> Self {
-        self.w = (self.origin - self.look_at).normalize();
-        self.u = self.vup.cross(&self.w).normalize();
-        self.v = self.w.cross(&self.u);
-
-        let h = (self.vfov.to_radians() / 2.0).tan();
-        self.view_height = 2.0 * h;
-        self.view_width = self.view_height * self.aspect_ratio;
-
-        self.horizontal = self.focus_dist * self.view_width * self.u;
-        self.vertical = self.focus_dist * self.view_height * self.v;
-        self.top_left_corner = self.origin - (self.horizontal / 2.0) + (self.vertical / 2.0)
-            - self.focus_dist * self.w;
-
-        self.lens_radius = self.aperture / 2.0;
-
-        self
-    }
-    pub fn get_ray(&self, s: f64, t: f64) -> Ray {
-        let rd = self.lens_radius * random_in_unit_disk();
-        let offset = self.u * rd[0] + self.v * rd[1];
-
-        Ray {
-            origin: self.origin + offset,
-            direction: (self.top_left_corner + s * self.horizontal
-                - t * self.vertical
-                - self.origin
-                - offset),
-        }
-    }
-}
-
-impl Default for Camera {
-    fn default() -> Self {
-        CameraBuilder::default().build().unwrap().finalize_build()
-    }
-}
-
-#[derive(Debug)]
+#[builder(build_fn(skip))]
 pub struct Canvas {
     pub width: u32,
     pub height: u32,
+    #[builder(setter(skip))]
     pub aspect_ratio: f64,
+    #[builder(setter(skip))]
     pub buffer: Array3<f64>,
 }
 
@@ -186,5 +111,29 @@ impl Canvas {
             image::ColorType::Rgb8,
         )?;
         Ok(())
+    }
+}
+
+impl CanvasBuilder {
+    pub fn build(&self) -> Result<Canvas, CanvasBuilderError> {
+        let width = match self.width {
+            Some(ref value) => value.clone(),
+            None => 600,
+        };
+        let height = match self.height {
+            Some(ref value) => value.clone(),
+            None => 300,
+        };
+
+        let aspect_ratio = width as f64 / height as f64;
+        let buffer = Array3::zeros((height as usize, width as usize, 3));
+
+        let result = Ok(Canvas {
+            width,
+            height,
+            aspect_ratio,
+            buffer,
+        });
+        result
     }
 }
