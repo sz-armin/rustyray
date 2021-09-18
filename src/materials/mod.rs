@@ -1,7 +1,7 @@
+use super::*;
 use std::cmp::min_by;
 
-use super::*;
-
+#[derive(Debug)]
 pub enum Material {
     Diffuse(Diffuse),
     Metal(Metal),
@@ -20,7 +20,7 @@ impl Scatter for Material {
     }
 }
 
-#[derive(Builder)]
+#[derive(Builder, Debug)]
 pub struct Diffuse {
     #[builder(default = "vector![1.0, 1.0, 1.0]")]
     pub albedo: Vector3<f64>,
@@ -29,10 +29,10 @@ pub struct Diffuse {
 impl Scatter for Diffuse {
     fn scatter(&self, _ray: &Ray, hit_rec: &HitRecord) -> (Option<Ray>, &Vector3<f64>) {
         // let mut rng = thread_rng();
-        // rng.gen_bool(0.75)
+        // let choice =rng.gen_bool(0.75);
         if true {
             let scattered_ray = Ray {
-                direction: &hit_rec.normal + random_in_unit_sphere().normalize(),
+                direction: hit_rec.normal + random_in_unit_sphere().normalize(),
                 origin: hit_rec.point,
             };
             (Some(scattered_ray), &self.albedo)
@@ -42,7 +42,7 @@ impl Scatter for Diffuse {
     }
 }
 
-#[derive(Builder)]
+#[derive(Builder, Debug)]
 pub struct Metal {
     #[builder(default = "vector![1.0, 1.0, 1.0]")]
     pub albedo: Vector3<f64>,
@@ -59,13 +59,13 @@ impl Scatter for Metal {
         }
         let scattered_ray = Ray {
             direction: scattered_direction,
-            origin: hit_rec.point.clone(),
+            origin: hit_rec.point,
         };
         (Some(scattered_ray), &self.albedo)
     }
 }
 
-#[derive(Builder)]
+#[derive(Builder, Debug)]
 pub struct Glass {
     #[builder(default = "1.5")]
     pub ir: f64,

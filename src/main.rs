@@ -33,7 +33,7 @@ use indicatif::ProgressBar;
 use nalgebra::*;
 
 #[cfg(debug_assertions)]
-const NORMAL: bool = true;
+const NORMAL: bool = false;
 
 fn main() {
     // Set the number of threads
@@ -44,13 +44,13 @@ fn main() {
 
     // Image
     let mut canvas = Canvas {
-        width: 1200,
-        height: 800,
+        width: 600,
+        height: 400,
         aspect_ratio: 3.0 / 2.0,
-        buffer: Array3::zeros((800, 1200, 3)),
+        buffer: Array3::zeros((400, 600, 3)),
     };
-    let samples_per_pix = 1000;
-    let depth = 50;
+    let samples_per_pix = 100;
+    let depth = 10;
 
     // World
     let materials = build_materials();
@@ -88,7 +88,7 @@ fn main() {
         let arr = Array1::from_iter(
             (accum_color / samples_per_pix as f64)
                 .map(|x| x.sqrt())
-                .into_iter()
+                .iter()
                 .cloned(),
         );
         pixel.assign(&arr);
@@ -155,7 +155,7 @@ fn build_materials() -> HashMap<String, Material> {
     materials
 }
 
-fn build_objects<'a>(materials: &'a HashMap<String, Material>) -> Vec<Object<'a>> {
+fn build_objects(materials: &HashMap<String, Material>) -> Vec<Object> {
     let mut rng = thread_rng();
     let mut objects = vec![];
     let mut counter = 0;
@@ -168,13 +168,13 @@ fn build_objects<'a>(materials: &'a HashMap<String, Material>) -> Vec<Object<'a>
                 0.2,
                 b as f64 + 0.9 * rng.gen::<f64>()
             ];
-            let temp = &center - vector![4.0, 0.2, 0.0];
+            let temp = center - vector![4.0, 0.2, 0.0];
             if temp.dot(&temp).sqrt() > 0.9 {
                 let sphere = Object::Sphere(
                     SphereBuilder::default()
-                        .center(center.clone())
+                        .center(center)
                         .radius(0.2)
-                        .material(&materials.get(&format!("{}", counter)).unwrap())
+                        .material(materials.get(&format!("{}", counter)).unwrap())
                         .build()
                         .unwrap(),
                 );
@@ -188,7 +188,7 @@ fn build_objects<'a>(materials: &'a HashMap<String, Material>) -> Vec<Object<'a>
         SphereBuilder::default()
             .center(vector![0.0, -1000.0, 0.0])
             .radius(1000.0)
-            .material(&materials.get("material_ground").unwrap())
+            .material(materials.get("material_ground").unwrap())
             .build()
             .unwrap(),
     );
@@ -196,7 +196,7 @@ fn build_objects<'a>(materials: &'a HashMap<String, Material>) -> Vec<Object<'a>
         SphereBuilder::default()
             .center(vector![0.0, 1.0, 0.0])
             .radius(1.0)
-            .material(&materials.get("sphere1").unwrap())
+            .material(materials.get("sphere1").unwrap())
             .build()
             .unwrap(),
     );
@@ -204,7 +204,7 @@ fn build_objects<'a>(materials: &'a HashMap<String, Material>) -> Vec<Object<'a>
         SphereBuilder::default()
             .center(vector![-4.0, 1.0, 0.0])
             .radius(1.0)
-            .material(&materials.get("sphere2").unwrap())
+            .material(materials.get("sphere2").unwrap())
             .build()
             .unwrap(),
     );
@@ -212,7 +212,7 @@ fn build_objects<'a>(materials: &'a HashMap<String, Material>) -> Vec<Object<'a>
         SphereBuilder::default()
             .center(vector![4.0, 1.0, 0.0])
             .radius(1.0)
-            .material(&materials.get("sphere3").unwrap())
+            .material(materials.get("sphere3").unwrap())
             .build()
             .unwrap(),
     );

@@ -23,7 +23,7 @@ pub struct Sphere<'a> {
 
 impl<'b, 'a: 'b> Hit<'b, 'a> for Sphere<'a> {
     fn hit(&self, ray: &Ray, t_range: std::ops::Range<f64>, hit_rec: &mut HitRecord<'b>) -> bool {
-        let oc = &ray.origin - &self.center;
+        let oc = ray.origin - self.center;
         let a = ray.direction.dot(&ray.direction);
         let half_b = oc.dot(&ray.direction);
         let c = oc.dot(&oc) - self.radius.powi(2);
@@ -44,7 +44,7 @@ impl<'b, 'a: 'b> Hit<'b, 'a> for Sphere<'a> {
         // TODO only calculate when needed
         hit_rec.t = root;
         hit_rec.point = ray.at(hit_rec.t);
-        let outward_normal = (&hit_rec.point - &self.center) / self.radius;
+        let outward_normal = (hit_rec.point - self.center) / self.radius;
         hit_rec.set_face_normal(ray, outward_normal);
         hit_rec.material = self.material;
 

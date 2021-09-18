@@ -48,11 +48,11 @@ impl Ray {
     }
 
     pub fn at(&self, t: f64) -> Vector3<f64> {
-        &self.origin + t * &self.direction
+        self.origin + t * self.direction
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct HitRecord<'a> {
     pub point: Vector3<f64>,
     pub normal: Vector3<f64>,
@@ -68,7 +68,7 @@ impl<'a> HitRecord<'a> {
             normal: Vector3::zeros(),
             t: 0.0,
             front_face: true,
-            material: material,
+            material,
         }
     }
     pub fn set_face_normal(&mut self, ray: &Ray, outward_normal: Vector3<f64>) {
@@ -81,7 +81,7 @@ impl<'a> HitRecord<'a> {
     }
 }
 
-#[derive(Builder, Clone)]
+#[derive(Builder, Debug)]
 pub struct Camera {
     #[builder(default = "vector![0.0, 0.0, 0.0]")]
     pub origin: Vector3<f64>,
@@ -125,7 +125,7 @@ pub struct Camera {
 
 impl Camera {
     pub fn finalize_build(mut self) -> Self {
-        self.w = (&self.origin - &self.look_at).normalize();
+        self.w = (self.origin - self.look_at).normalize();
         self.u = self.vup.cross(&self.w).normalize();
         self.v = self.w.cross(&self.u);
 
@@ -133,10 +133,10 @@ impl Camera {
         self.view_height = 2.0 * h;
         self.view_width = self.view_height * self.aspect_ratio;
 
-        self.horizontal = self.focus_dist * self.view_width * &self.u;
-        self.vertical = self.focus_dist * self.view_height * &self.v;
-        self.top_left_corner = &self.origin - (&self.horizontal / 2.0) + (&self.vertical / 2.0)
-            - self.focus_dist * &self.w;
+        self.horizontal = self.focus_dist * self.view_width * self.u;
+        self.vertical = self.focus_dist * self.view_height * self.v;
+        self.top_left_corner = self.origin - (self.horizontal / 2.0) + (self.vertical / 2.0)
+            - self.focus_dist * self.w;
 
         self.lens_radius = self.aperture / 2.0;
 
@@ -144,14 +144,14 @@ impl Camera {
     }
     pub fn get_ray(&self, s: f64, t: f64) -> Ray {
         let rd = self.lens_radius * random_in_unit_disk();
-        let offset = &self.u * rd[0] + &self.v * rd[1];
+        let offset = self.u * rd[0] + self.v * rd[1];
 
         Ray {
-            origin: self.origin.clone() + &offset,
-            direction: (&self.top_left_corner + s * &self.horizontal
-                - t * &self.vertical
-                - &self.origin
-                - &offset),
+            origin: self.origin + offset,
+            direction: (self.top_left_corner + s * self.horizontal
+                - t * self.vertical
+                - self.origin
+                - offset),
         }
     }
 }
@@ -162,6 +162,7 @@ impl Default for Camera {
     }
 }
 
+#[derive(Debug)]
 pub struct Canvas {
     pub width: u32,
     pub height: u32,
