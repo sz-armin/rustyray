@@ -3,137 +3,117 @@ use super::*;
 mod camera;
 pub use camera::*;
 
-#[derive(Debug)]
-pub struct Ray {
-    pub origin: Vector3<f64>,
-    pub direction: Vector3<f64>,
-}
+mod canvas;
+pub use canvas::*;
 
-impl Ray {
-    pub fn get_color<'b, 'a: 'b, T: Hit<'b, 'a>>(
-        &self,
-        scene_objs: &'a T,
-        depth: u32,
-    ) -> Vector3<f64> {
-        if depth == 0 {
-            return vector![0.0, 0.0, 0.0];
-        }
-        let mut hit_rec = HitRecord::new(&Material::None);
-        // TODO Range?
-        if scene_objs.hit(self, 0.001..f64::INFINITY, &mut hit_rec) {
-            #[cfg(debug_assertions)]
-            if NORMAL {
-                return 0.5
-                    * vector![
-                        hit_rec.normal[0] + 1.0,
-                        hit_rec.normal[1] + 1.0,
-                        hit_rec.normal[2] + 1.0
-                    ];
-            }
-
-            let (scattered_ray, attenuation) = hit_rec.material.scatter(self, &hit_rec);
-            match scattered_ray {
-                Some(mut ray) => {
-                    if ray.direction.is_near_zero() {
-                        ray.direction = hit_rec.normal;
-                    }
-                    return ray
-                        .get_color(scene_objs, depth - 1)
-                        .component_mul(attenuation);
-                }
-                None => return vector![0.0, 0.0, 0.0],
-            }
-        }
-
-        let unit_dir = 0.5 * (self.direction.normalize().add_scalar(1.0));
-        // Colors
-        (1.0 - unit_dir[1]) * vector![1.0, 1.0, 1.0] + unit_dir[1] * vector![0.5, 0.7, 1.0]
-    }
-
-    pub fn at(&self, t: f64) -> Vector3<f64> {
-        self.origin + t * self.direction
-    }
-}
-
-#[derive(Clone, Debug)]
-pub struct HitRecord<'a> {
-    pub point: Vector3<f64>,
-    pub normal: Vector3<f64>,
-    pub t: f64,
-    pub front_face: bool,
-    pub material: &'a Material,
-}
-
-impl<'a> HitRecord<'a> {
-    pub fn new(material: &'a Material) -> Self {
-        HitRecord {
-            point: Vector3::zeros(),
-            normal: Vector3::zeros(),
-            t: 0.0,
-            front_face: true,
-            material,
-        }
-    }
-    pub fn set_face_normal(&mut self, ray: &Ray, outward_normal: Vector3<f64>) {
-        self.front_face = ray.direction.dot(&outward_normal) < 0.0;
-        if self.front_face {
-            self.normal = outward_normal;
-        } else {
-            self.normal = -outward_normal;
-        }
-    }
-}
+mod ray;
+pub use ray::*;
 
 #[derive(Builder, Debug)]
 #[builder(build_fn(skip))]
-pub struct Canvas {
-    pub width: u32,
-    pub height: u32,
+// TODO lifetimes
+pub struct Renderer<'a> {
+    samples: u32,
+    max_depth: u32,
+    thread_count: u32,
+
+    gamma: f64,
+
+    pub camera: Camera,
+    canvas: Canvas,
+
+    scene_objects: &'a [Object<'a>],
+
     #[builder(setter(skip))]
-    pub aspect_ratio: f64,
-    #[builder(setter(skip))]
-    pub buffer: Array3<f64>,
+    progress_bar: ProgressBar,
 }
 
-impl Canvas {
-    pub fn save(&self) -> Result<(), ImageError> {
-        let tmapped_raw = self
+impl Renderer<'_> {
+    pub fn render(&mut self) {
+        Zip::indexed(self.canvas.buffer.lanes_mut(Axis(2))).par_for_each(|(j, i), mut pixel| {
+            let mut accum_color = vector![0.0, 0.0, 0.0];
+            let mut rng = thread_rng();
+            for _ in 0..self.samples {
+                let u = (i as f64 + rng.gen::<f64>()) / (self.canvas.width - 1) as f64;
+                let v = (j as f64 + rng.gen::<f64>()) / (self.canvas.height - 1) as f64;
+                // TODO move to camera
+                let ray = self.camera.get_ray(u, v);
+                accum_color += &ray.get_color(&self.scene_objects, self.max_depth);
+            }
+            // TODO allow manual gamma correction
+            let arr = Array1::from_iter((accum_color / self.samples as f64).iter().cloned());
+            pixel.assign(&arr);
+            self.progress_bar.inc(1);
+        });
+    }
+    pub fn save_render(&mut self, path: &str) {
+        // TODO error
+        self.canvas
             .buffer
-            .as_standard_layout()
-            .mapv(|x| (x * 255.0) as u8)
-            .into_raw_vec();
-        let file = std::fs::File::create("/home/qtqbpo/a.png").unwrap();
-        let encoder = PngEncoder::new(file);
-        encoder.encode(
-            tmapped_raw.as_bytes(),
-            self.width,
-            self.height,
-            image::ColorType::Rgb8,
-        )?;
-        Ok(())
+            .mapv_inplace(|x| x.powf(1.0 / self.gamma));
+        self.canvas.save(path).expect("Failed to save the render.");
     }
 }
 
-impl CanvasBuilder {
-    pub fn build(&self) -> Result<Canvas, CanvasBuilderError> {
-        let width = match self.width {
-            Some(ref value) => value.clone(),
-            None => 600,
+impl<'a> RendererBuilder<'a> {
+    pub fn build(&self) -> Result<Renderer<'a>, RendererBuilderError> {
+        let samples = match self.samples {
+            Some(value) => value,
+            None => 50,
         };
-        let height = match self.height {
-            Some(ref value) => value.clone(),
-            None => 300,
+        let max_depth = match self.max_depth {
+            Some(value) => value,
+            None => 25,
+        };
+        let thread_count = match self.thread_count {
+            Some(value) => value,
+            None => 8,
+        };
+        let canvas = match self.canvas {
+            Some(ref value) => (*value).clone(),
+            None => CanvasBuilder::default().build().unwrap(),
+        };
+        let gamma = match self.gamma {
+            Some(value) => value,
+            None => 2.0,
+        };
+        let camera = match self.camera {
+            Some(ref value) => {
+                let mut camera = (*value).clone();
+                // TODO cleanup
+                camera.aspect_ratio = canvas.aspect_ratio;
+                camera.view_width = camera.view_height * camera.aspect_ratio;
+                camera.vertical = camera.focus_dist * camera.view_height * camera.v;
+                camera.horizontal = camera.focus_dist * camera.view_width * camera.u;
+                camera.top_left_corner = camera.origin - (camera.horizontal / 2.0)
+                    + (camera.vertical / 2.0)
+                    - camera.focus_dist * camera.w;
+                camera
+            }
+            None => CameraBuilder::default().build().unwrap(),
+        };
+        let scene_objects = match self.scene_objects {
+            Some(value) => value,
+            None => return Result::Err(Into::into(UninitializedFieldError::from("scene_objects"))),
         };
 
-        let aspect_ratio = width as f64 / height as f64;
-        let buffer = Array3::zeros((height as usize, width as usize, 3));
+        let pixel_count = (canvas.width * canvas.height) as u64;
+        let progress_bar = ProgressBar::new(pixel_count);
 
-        let result = Ok(Canvas {
-            width,
-            height,
-            aspect_ratio,
-            buffer,
-        });
-        result
+        rayon::ThreadPoolBuilder::new()
+            .num_threads(thread_count as usize)
+            .build_global()
+            .unwrap();
+
+        Ok(Renderer {
+            samples,
+            max_depth,
+            thread_count,
+            camera,
+            canvas,
+            scene_objects,
+            progress_bar,
+            gamma,
+        })
     }
 }

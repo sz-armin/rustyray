@@ -1,5 +1,6 @@
 use super::*;
 
+#[derive(Debug, Clone)]
 pub enum Object<'a> {
     Sphere(Sphere<'a>),
 }
@@ -12,7 +13,7 @@ impl<'b, 'a: 'b> Hit<'b, 'a> for Object<'a> {
     }
 }
 
-#[derive(Builder)]
+#[derive(Builder, Debug, Clone)]
 pub struct Sphere<'a> {
     #[builder(default = "vector![0.0, 0.0, 0.0]")]
     pub center: Vector3<f64>,
@@ -52,7 +53,7 @@ impl<'b, 'a: 'b> Hit<'b, 'a> for Sphere<'a> {
     }
 }
 
-impl<'b, 'a: 'b, T: Hit<'b, 'a>> Hit<'b, 'a> for Vec<T> {
+impl<'b, 'a: 'b, T: Hit<'b, 'a>> Hit<'b, 'a> for &[T] {
     fn hit<'c>(
         &self,
         ray: &Ray,
@@ -64,7 +65,7 @@ impl<'b, 'a: 'b, T: Hit<'b, 'a>> Hit<'b, 'a> for Vec<T> {
         let mut hit_anything = false;
         let mut closet = t_range.end;
         // TODO is there a better way?
-        for obj in self {
+        for obj in *self {
             if obj.hit(ray, t_range.start..closet, &mut temp_rec) {
                 hit_anything = true;
                 closet = temp_rec.t;

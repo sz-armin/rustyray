@@ -36,65 +36,27 @@ use nalgebra::*;
 const NORMAL: bool = false;
 
 fn main() {
-    // Set the number of threads
-    rayon::ThreadPoolBuilder::new()
-        .num_threads(16)
-        .build_global()
-        .unwrap();
-
-    // Image
-    let mut canvas = CanvasBuilder::default()
-        .width(600)
-        .height(400)
-        .build()
-        .unwrap();
-    let samples_per_pix = 250;
-    let depth = 50;
-
     // World
     let materials = build_materials();
-    let objs = build_objects(&materials);
-    let scene_objs: Vec<&Object> = objs.iter().collect();
+    let objects = build_objects(&materials);
 
-    // Camera
-    let camera = CameraBuilder::default()
-        .aspect_ratio(canvas.aspect_ratio)
-        .origin(vector![13.0, 2.0, 3.0])
-        .vfov(20.0)
-        .focus_dist(10.0)
-        .look_at(vector![0.0, 0.0, 0.0])
-        .aperture(0.1)
+    let mut renderer = RendererBuilder::default()
+        .scene_objects(&objects[..])
+        .camera(
+            CameraBuilder::default()
+                .origin(vector![13.0, 2.0, 3.0])
+                .vfov(20.0)
+                .focus_dist(10.0)
+                .look_at(vector![0.0, 0.0, 0.0])
+                .aperture(0.1)
+                .build()
+                .unwrap(),
+        )
         .build()
         .unwrap();
 
-    // Progress Bar
-    let pixel_count = (canvas.width * canvas.height) as u64;
-    let progress_bar = ProgressBar::new(pixel_count);
-
-    // Render
-    Zip::indexed(canvas.buffer.lanes_mut(Axis(2))).par_for_each(|(j, i), mut pixel| {
-        let mut accum_color = vector![0.0, 0.0, 0.0];
-        let mut rng = thread_rng();
-        for _ in 0..samples_per_pix {
-            let u = (i as f64 + rng.gen::<f64>()) / (canvas.width - 1) as f64;
-            let v = (j as f64 + rng.gen::<f64>()) / (canvas.height - 1) as f64;
-            // TODO move to camera
-            let ray = camera.get_ray(u, v);
-            accum_color += &ray.get_color(&scene_objs, depth);
-        }
-        // TODO allow manual gamma correction
-        let arr = Array1::from_iter(
-            (accum_color / samples_per_pix as f64)
-                .map(|x| x.sqrt())
-                .iter()
-                .cloned(),
-        );
-        pixel.assign(&arr);
-        progress_bar.inc(1);
-    });
-
-    // I/O
-    canvas.save().expect("Failed to save file.");
+    renderer.render();
+    renderer.save_render("/home/qtqbpo/a.png");
 }
 
 fn build_materials() -> HashMap<String, Material> {
