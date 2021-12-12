@@ -59,11 +59,11 @@ impl<'a> RendererBuilder<'a> {
     pub fn build(&self) -> Result<Renderer<'a>, RendererBuilderError> {
         let samples = match self.samples {
             Some(value) => value,
-            None => 50,
+            None => 500,
         };
         let max_depth = match self.max_depth {
             Some(value) => value,
-            None => 25,
+            None => 50,
         };
         let thread_count = match self.thread_count {
             Some(value) => value,

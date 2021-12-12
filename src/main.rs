@@ -41,6 +41,7 @@ fn main() {
     let objects = build_objects(&materials);
 
     let mut renderer = RendererBuilder::default()
+        .thread_count(32)
         .scene_objects(&objects[..])
         .camera(
             CameraBuilder::default()
@@ -56,7 +57,7 @@ fn main() {
         .unwrap();
 
     renderer.render();
-    renderer.save_render("/home/qtqbpo/a.png");
+    renderer.save_render("sample_renders/test.png");
 }
 
 fn build_materials() -> HashMap<String, Material> {
