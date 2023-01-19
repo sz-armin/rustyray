@@ -1,5 +1,5 @@
 [package]
-name = "path_tracer"
+name = "rustyray"
 version = "0.1.0"
 edition = "2021"
 
